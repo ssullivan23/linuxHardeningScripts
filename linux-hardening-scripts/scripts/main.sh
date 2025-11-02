@@ -2,14 +2,20 @@
 
 # Main script for orchestrating Linux hardening measures
 
-# Load utility functions
-source ./utils/logger.sh
-source ./utils/validation.sh
-source ./utils/reporting.sh
+set -euo pipefail
+
+# Determine script directory and repository root so paths work regardless of cwd
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+
+# Load utility functions from scripts/utils
+source "$REPO_ROOT/scripts/utils/logger.sh"
+source "$REPO_ROOT/scripts/utils/validation.sh"
+source "$REPO_ROOT/scripts/utils/reporting.sh"
 
 # Default values
 DRY_RUN=false
-LOG_FILE="logs/hardening_summary.log"
+LOG_FILE="$REPO_ROOT/logs/hardening_summary.log"
 
 # Function to display usage
 usage() {
@@ -32,6 +38,9 @@ done
 # Validate permissions
 validate_permissions
 
+# Ensure logs directory exists
+mkdir -p "$(dirname "$LOG_FILE")"
+
 # Start logging
 log_start "$LOG_FILE"
 
@@ -42,8 +51,10 @@ else
     log_message "Starting hardening process..."
 fi
 
-# Call each hardening script
-for script in ./hardening/*.sh; do
+# Discover and run each hardening script from scripts/hardening
+HARDENING_DIR="$REPO_ROOT/scripts/hardening"
+for script in "$HARDENING_DIR"/*.sh; do
+    [ -e "$script" ] || continue
     if $DRY_RUN; then
         bash "$script" --dry-run
     else

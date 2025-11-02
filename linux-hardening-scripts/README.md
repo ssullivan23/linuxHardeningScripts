@@ -13,6 +13,7 @@ A comprehensive set of Bash scripts designed to help novice and experienced syst
 - **👤 Beginner-Friendly**: Clear, descriptive logging with explanations for each action
 - **🎯 Modular Design**: Run scripts individually or orchestrate all at once
 - **📈 Change Tracking**: Counts and reports exactly what was modified
+- **🛡️ Path-Safe**: Scripts work correctly from any directory and maintain proper paths
 
 ## 📦 What's Included
 
@@ -112,13 +113,12 @@ linux-hardening-scripts/
 1. Clone the repository:
    ```bash
    git clone https://github.com/ssullivan23/linuxHardeningScripts.git
-   cd linux-hardening-scripts/linux-hardening-scripts
    ```
 
 2. Make scripts executable:
    ```bash
-   chmod +x scripts/main.sh
-   chmod +x scripts/hardening/*.sh
+   chmod +x linux-hardening-scripts/scripts/main.sh
+   chmod +x linux-hardening-scripts/scripts/hardening/*.sh
    ```
 
 ### Usage
@@ -128,40 +128,49 @@ linux-hardening-scripts/
 **Always start with a dry run to see what would change:**
 
 ```bash
-sudo bash scripts/main.sh --dry-run
+# The script can be run from any directory - it maintains proper paths
+sudo ./linux-hardening-scripts/scripts/main.sh --dry-run
 ```
 
 #### Apply All Hardening Measures
 
 ```bash
-sudo bash scripts/main.sh
+sudo ./linux-hardening-scripts/scripts/main.sh
 ```
 
 #### Run Individual Scripts
 
-Each script can be run independently:
+Each script can be run independently and will maintain proper paths to utility scripts and configuration files:
 
 ```bash
 # SSH hardening (dry run)
-sudo bash scripts/hardening/ssh-hardening.sh --dry-run
+sudo ./linux-hardening-scripts/scripts/hardening/ssh-hardening.sh --dry-run
 
 # Apply SSH hardening
-sudo bash scripts/hardening/ssh-hardening.sh
+sudo ./linux-hardening-scripts/scripts/hardening/ssh-hardening.sh
 
 # Firewall setup (dry run)
-sudo bash scripts/hardening/firewall-setup.sh --dry-run
+sudo ./linux-hardening-scripts/scripts/hardening/firewall-setup.sh --dry-run
 
 # User security hardening
-sudo bash scripts/hardening/user-security.sh --dry-run
+sudo ./linux-hardening-scripts/scripts/hardening/user-security.sh --dry-run
 
 # Filesystem hardening
-sudo bash scripts/hardening/filesystem-hardening.sh --dry-run
+sudo ./linux-hardening-scripts/scripts/hardening/filesystem-hardening.sh --dry-run
 
 # Kernel hardening
-sudo bash scripts/hardening/kernel-hardening.sh --dry-run
+sudo ./linux-hardening-scripts/scripts/hardening/kernel-hardening.sh --dry-run
 
 # Service hardening
-sudo bash scripts/hardening/service-hardening.sh --dry-run
+sudo ./linux-hardening-scripts/scripts/hardening/service-hardening.sh --dry-run
+```
+
+#### Customizing Log Location
+
+By default, logs are written to the `logs/` directory in the repository. You can specify a different location:
+
+```bash
+sudo ./linux-hardening-scripts/scripts/main.sh --log-file /var/log/hardening.log
 ```
 
 ## ⚠️ Important Notes
@@ -195,11 +204,21 @@ All scripts automatically create timestamped backups:
 
 ## 🧪 Testing
 
-Test scripts are provided to verify hardening:
+Test scripts can be run from any directory and will find all hardening scripts automatically:
 
 ```bash
-bash tests/test-hardening.sh
+# Run all tests in dry-run mode first
+sudo ./linux-hardening-scripts/tests/test-hardening.sh --dry-run
+
+# Run actual tests
+sudo ./linux-hardening-scripts/tests/test-hardening.sh
 ```
+
+The test script will:
+1. Automatically discover all hardening scripts
+2. Run each in dry-run mode first
+3. Execute actual tests if dry run succeeds
+4. Generate test reports in the logs directory
 
 ## 🤝 Contributing
 

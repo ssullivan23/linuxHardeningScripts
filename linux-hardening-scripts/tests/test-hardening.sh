@@ -2,9 +2,15 @@
 
 # test-hardening.sh - Test script for verifying the functionality of hardening scripts
 
-# Load utility functions
-source ../utils/logger.sh
-source ../utils/validation.sh
+set -euo pipefail
+
+# Determine script dir and repo root
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+
+# Load utility functions from scripts/utils
+source "$REPO_ROOT/scripts/utils/logger.sh"
+source "$REPO_ROOT/scripts/utils/validation.sh"
 
 # Function to run a test
 run_test() {
@@ -23,15 +29,13 @@ run_test() {
 # Main execution
 log_info "Starting hardening tests..."
 
-# List of scripts to test
-scripts=(
-    "../hardening/ssh-hardening.sh"
-    "../hardening/firewall-setup.sh"
-    "../hardening/user-security.sh"
-    "../hardening/filesystem-hardening.sh"
-    "../hardening/kernel-hardening.sh"
-    "../hardening/service-hardening.sh"
-)
+# Discover hardening scripts from scripts/hardening
+HARDENING_DIR="$REPO_ROOT/scripts/hardening"
+scripts=()
+for s in "$HARDENING_DIR"/*.sh; do
+    [ -e "$s" ] || continue
+    scripts+=("$s")
+done
 
 # Run tests in dry run mode
 for script in "${scripts[@]}"; do
