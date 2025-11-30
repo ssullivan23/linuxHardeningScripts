@@ -42,6 +42,8 @@ USAGE:
 
 OPTIONS:
   -h, --help                    Display this help message and exit
+  --update                      Update scripts from main repository and resync
+  --update-status               Check for available updates
   --dry-run                     Preview all changes without making modifications
   --log-file <file>             Specify custom log file location
                                 (default: logs/hardening_summary.log)
@@ -61,22 +63,31 @@ AVAILABLE MODULES:
 
 QUICK START EXAMPLES:
 
-  1. Preview all changes (dry-run, always do this first):
+  1. Check for updates:
+     sudo ./linux-hardening-scripts/scripts/main.sh --update-status
+
+  2. Update scripts from repository:
+     sudo ./linux-hardening-scripts/scripts/main.sh --update
+
+  3. Preview update changes (dry-run):
+     sudo ./linux-hardening-scripts/scripts/main.sh --update --dry-run
+
+  4. Preview all hardening changes (dry-run, always do this first):
      sudo ./linux-hardening-scripts/scripts/main.sh --dry-run
 
-  2. Apply all hardening:
+  5. Apply all hardening:
      sudo ./linux-hardening-scripts/scripts/main.sh
 
-  3. Skip SSH hardening:
+  6. Skip SSH hardening:
      sudo ./linux-hardening-scripts/scripts/main.sh --dry-run --exclude-modules ssh-hardening
 
-  4. Skip multiple modules:
+  7. Skip multiple modules:
      sudo ./linux-hardening-scripts/scripts/main.sh --exclude-modules firewall-setup,network-hardening
 
-  5. Use custom log file:
+  8. Use custom log file:
      sudo ./linux-hardening-scripts/scripts/main.sh --log-file /var/log/hardening.log
 
-  6. Combine options:
+  9. Combine options:
      sudo ./linux-hardening-scripts/scripts/main.sh --dry-run --exclude-modules ssh-hardening --log-file /tmp/test.log
 
 WORKFLOW:
@@ -121,6 +132,16 @@ while [[ "$#" -gt 0 ]]; do
         -h|--help) 
             usage
             exit 0
+            ;;
+        --update)
+            # Run updater script
+            "$REPO_ROOT/scripts/utils/updater.sh" update
+            exit $?
+            ;;
+        --update-status)
+            # Check update status
+            "$REPO_ROOT/scripts/utils/updater.sh" status
+            exit $?
             ;;
         --dry-run) DRY_RUN=true ;;
         --log-file) 

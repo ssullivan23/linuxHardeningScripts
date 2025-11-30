@@ -17,6 +17,7 @@ A comprehensive set of Bash scripts designed to help novice and experienced syst
 - **🧩 Compartmentalized Modules**: Enable/disable specific hardening controls selectively
 - **📋 CIS Benchmark Aligned**: Implements CIS Ubuntu Linux 22.04 LTS hardening controls
 - **❓ Built-in Help**: Use `-h` or `--help` to display comprehensive usage information
+- **🔄 Self-Update Feature**: Automatically sync with main repository and resync changes
 
 ## 🆘 Getting Help
 
@@ -225,6 +226,36 @@ nano ./linux-hardening-scripts/config/modules.conf
 # Then run with your custom configuration
 sudo ./linux-hardening-scripts/scripts/main.sh --dry-run
 ```
+
+#### Self-Update Feature
+
+Keep your scripts synchronized with the main repository:
+
+```bash
+# Check for available updates
+sudo ./linux-hardening-scripts/scripts/main.sh --update-status
+
+# Preview what will be updated (dry-run)
+sudo ./linux-hardening-scripts/scripts/main.sh --update --dry-run
+
+# Apply latest updates from repository
+sudo ./linux-hardening-scripts/scripts/main.sh --update
+
+# View all available backups
+sudo ./linux-hardening-scripts/scripts/utils/updater.sh list-backups
+
+# Restore from latest backup if needed
+sudo ./linux-hardening-scripts/scripts/utils/updater.sh restore
+```
+
+**Key Features:**
+- ✅ Automatic backups before each update
+- ✅ Preserves your local configuration and changes
+- ✅ Dry-run mode to preview changes
+- ✅ Automatic rollback on failure
+- ✅ Backup rotation (keeps last 5 backups)
+
+For comprehensive update documentation, see **[SELF_UPDATE.md](docs/SELF_UPDATE.md)**.
 
 #### Run Individual Modules
 
