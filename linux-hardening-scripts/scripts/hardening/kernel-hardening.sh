@@ -6,11 +6,12 @@
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-# Source utilities
-source "${SCRIPT_DIR}/../utils/logger.sh" 2>/dev/null || {
+# Source utilities (explicit check to avoid brace-based one-liner concatenation issues)
+# Using an explicit if/then/fi preserves newlines and avoids stray '}' characters
+if ! source "${SCRIPT_DIR}/../utils/logger.sh" 2>/dev/null; then
     echo "ERROR: Cannot load logger.sh" >&2
     exit 1
-}
+fi
 
 # Function to display usage
 usage() {
