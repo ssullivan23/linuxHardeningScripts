@@ -267,8 +267,15 @@ SKIPPED_SCRIPTS=0
 for script in "$HARDENING_DIR"/*.sh; do
     [ -e "$script" ] || continue
     
-    TOTAL_SCRIPTS=$((TOTAL_SCRIPTS + 1))
     script_name=$(basename "$script")
+    
+    # Explicitly skip removed modules (do NOT execute kernel-hardening)
+    if [ "$script_name" = "kernel-hardening.sh" ]; then
+        log_message "Skipping: $script_name (module removed)"
+        continue
+    fi
+    
+    TOTAL_SCRIPTS=$((TOTAL_SCRIPTS + 1))
     
     if should_run_module "$script"; then
         log_message "Executing: $script_name"
