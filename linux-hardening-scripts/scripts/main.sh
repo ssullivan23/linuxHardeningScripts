@@ -9,6 +9,18 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
+# Function to ensure all scripts have execute permissions
+ensure_execute_permissions() {
+    # Silently fix permissions on all scripts
+    chmod +x "$SCRIPT_DIR/main.sh" 2>/dev/null || true
+    chmod +x "$SCRIPT_DIR/utils"/*.sh 2>/dev/null || true
+    chmod +x "$SCRIPT_DIR/hardening"/*.sh 2>/dev/null || true
+    chmod +x "$REPO_ROOT/tests"/*.sh 2>/dev/null || true
+}
+
+# Ensure permissions are set before loading utilities
+ensure_execute_permissions
+
 # Load utility functions from scripts/utils
 source "$REPO_ROOT/scripts/utils/logger.sh"
 source "$REPO_ROOT/scripts/utils/validation.sh"
