@@ -17,9 +17,9 @@ generate_summary() {
     local log_file="${1:-.}"
     
     echo ""
-    printf "${CYAN}╔═══════════════════════════════════════════════════════════════════════════╗${NC}\n"
-    printf "${CYAN}║                    HARDENING AUDIT SUMMARY REPORT                         ║${NC}\n"
-    printf "${CYAN}╚═══════════════════════════════════════════════════════════════════════════╝${NC}\n"
+    echo -e "${CYAN}╔═══════════════════════════════════════════════════════════════════════════╗${NC}"
+    echo -e "${CYAN}║                    HARDENING AUDIT SUMMARY REPORT                         ║${NC}"
+    echo -e "${CYAN}╚═══════════════════════════════════════════════════════════════════════════╝${NC}"
     echo ""
 
     if [ -f "$log_file" ]; then
@@ -35,33 +35,33 @@ generate_summary() {
             
             if [[ "$line" =~ ERROR ]]; then
                 ((error_count++))
-                printf "${RED}✗ $(echo "$line" | sed 's/.*ERROR: //')${NC}\n"
+                echo -e "${RED}✗ $(echo "$line" | sed 's/.*ERROR: //')${NC}"
             elif [[ "$line" =~ WARNING ]]; then
                 ((warning_count++))
-                printf "${YELLOW}⚠ $(echo "$line" | sed 's/.*WARNING: //')${NC}\n"
+                echo -e "${YELLOW}⚠ $(echo "$line" | sed 's/.*WARNING: //')${NC}"
             elif [[ "$line" =~ SUCCESS|Completed|completed|applied ]]; then
                 ((success_count++))
-                printf "${GREEN}✓ $(echo "$line" | sed 's/.*SUCCESS: //')${NC}\n"
+                echo -e "${GREEN}✓ $(echo "$line" | sed 's/.*SUCCESS: //')${NC}"
             elif [[ "$line" =~ INFO|Starting|Executing ]]; then
                 ((info_count++))
-                printf "${BLUE}ℹ $(echo "$line" | sed 's/.*INFO: //')${NC}\n"
+                echo -e "${BLUE}ℹ $(echo "$line" | sed 's/.*INFO: //')${NC}"
             else
-                printf "${WHITE}  $line${NC}\n"
+                echo -e "${WHITE}  $line${NC}"
             fi
         done < "$log_file"
 
         # Print statistics
         echo ""
-        printf "${CYAN}─────────────────────────────────────────────────────────────────────────────${NC}\n"
-        printf "${BLUE}Summary Statistics:${NC}\n"
-        printf "  ${GREEN}Success Messages:${NC}  $success_count\n"
-        printf "  ${BLUE}Info Messages:${NC}     $info_count\n"
-        printf "  ${YELLOW}Warnings:${NC}           $warning_count\n"
-        printf "  ${RED}Errors:${NC}             $error_count\n"
-        printf "${CYAN}─────────────────────────────────────────────────────────────────────────────${NC}\n"
+        echo -e "${CYAN}─────────────────────────────────────────────────────────────────────────────${NC}"
+        echo -e "${BLUE}Summary Statistics:${NC}"
+        echo -e "  ${GREEN}Success Messages:${NC}  $success_count"
+        echo -e "  ${BLUE}Info Messages:${NC}     $info_count"
+        echo -e "  ${YELLOW}Warnings:${NC}           $warning_count"
+        echo -e "  ${RED}Errors:${NC}             $error_count"
+        echo -e "${CYAN}─────────────────────────────────────────────────────────────────────────────${NC}"
         echo ""
     else
-        printf "${YELLOW}⚠ No actions were logged. Summary report is empty.${NC}\n"
+        echo -e "${YELLOW}⚠ No actions were logged. Summary report is empty.${NC}"
         echo ""
     fi
 }
@@ -71,43 +71,43 @@ generate_report() {
     local log_file="${1:-.}"
     
     echo ""
-    printf "${CYAN}╔═══════════════════════════════════════════════════════════════════════════╗${NC}\n"
-    printf "${CYAN}║                   DETAILED HARDENING AUDIT REPORT                        ║${NC}\n"
-    printf "${CYAN}╚═══════════════════════════════════════════════════════════════════════════╝${NC}\n"
+    echo -e "${CYAN}╔═══════════════════════════════════════════════════════════════════════════╗${NC}"
+    echo -e "${CYAN}║                   DETAILED HARDENING AUDIT REPORT                        ║${NC}"
+    echo -e "${CYAN}╚═══════════════════════════════════════════════════════════════════════════╝${NC}"
     echo ""
-    printf "${MAGENTA}Report Generated: $(date '+%Y-%m-%d %H:%M:%S')${NC}\n"
-    printf "${MAGENTA}Hostname: $(hostname)${NC}\n"
+    echo -e "${MAGENTA}Report Generated: $(date '+%Y-%m-%d %H:%M:%S')${NC}"
+    echo -e "${MAGENTA}Hostname: $(hostname)${NC}"
     echo ""
 
     if [ -f "$log_file" ]; then
-        printf "${BLUE}Log File: ${WHITE}${log_file}${NC}\n"
-        printf "${BLUE}File Size: ${WHITE}$(du -h "$log_file" | cut -f1)${NC}\n"
+        echo -e "${BLUE}Log File: ${WHITE}${log_file}${NC}"
+        echo -e "${BLUE}File Size: ${WHITE}$(du -h "$log_file" | cut -f1)${NC}"
         echo ""
         
-        printf "${CYAN}─ DETAILED LOG ENTRIES ─────────────────────────────────────────────────────${NC}\n"
+        echo -e "${CYAN}─ DETAILED LOG ENTRIES ─────────────────────────────────────────────────────${NC}"
         echo ""
         
         # Parse and color-code each line
         while IFS= read -r line; do
             if [[ "$line" =~ ERROR ]]; then
-                printf "${RED}${line}${NC}\n"
+                echo -e "${RED}${line}${NC}"
             elif [[ "$line" =~ WARNING ]]; then
-                printf "${YELLOW}${line}${NC}\n"
+                echo -e "${YELLOW}${line}${NC}"
             elif [[ "$line" =~ SUCCESS|Completed|applied ]]; then
-                printf "${GREEN}${line}${NC}\n"
+                echo -e "${GREEN}${line}${NC}"
             elif [[ "$line" =~ INFO|Executing|Starting ]]; then
-                printf "${BLUE}${line}${NC}\n"
+                echo -e "${BLUE}${line}${NC}"
             elif [[ "$line" =~ DRY.RUN ]]; then
-                printf "${CYAN}${line}${NC}\n"
+                echo -e "${CYAN}${line}${NC}"
             else
-                printf "${WHITE}${line}${NC}\n"
+                echo -e "${WHITE}${line}${NC}"
             fi
         done < "$log_file"
         
         echo ""
-        printf "${CYAN}─────────────────────────────────────────────────────────────────────────────${NC}\n"
+        echo -e "${CYAN}─────────────────────────────────────────────────────────────────────────────${NC}"
     else
-        printf "${YELLOW}⚠ No log file found at: ${WHITE}${log_file}${NC}\n"
+        echo -e "${YELLOW}⚠ No log file found at: ${WHITE}${log_file}${NC}"
         echo ""
     fi
 }
