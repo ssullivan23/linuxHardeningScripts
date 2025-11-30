@@ -1,106 +1,80 @@
-#!/bin/bash#!/bin/bash
+#!/bin/bash
 
+# filesystem-hardening.sh - Filesystem Hardening Script
+# Purpose: Secure filesystem permissions and mount options
+# Features: Dry-run mode, console logging, summary reporting
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-################################################################################# File: filesystem-hardening.sh
-
-# Filesystem Hardening Script
-
-# Purpose: Secure filesystem permissions and mount options# Load logger utility
-
-# Features: Dry-run mode, console logging, summary reportingsource ../utils/logger.sh
-
-################################################################################
+# Source utilities
+source "${SCRIPT_DIR}/../utils/logger.sh" 2>/dev/null || {
+    echo "ERROR: Cannot load logger.sh" >&2
+    exit 1
+}
 
 # Function to display usage
-
-# Source utilitiesusage() {
-
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"    echo "Usage: $0 [--dry-run]"
-
-source "${SCRIPT_DIR}/../utils/logger.sh" 2>/dev/null || {    echo "  --dry-run    Show what changes would be made without applying them."
-
-    echo "ERROR: Cannot load logger.sh"    exit 1
-
-    exit 1}
+usage() {
+    echo "Usage: $0 [--dry-run]"
+    echo "  --dry-run    Show what changes would be made without applying them."
 
 }
 
-# Check for dry run option
+# Configuration
+DRY_RUN=false
+CHANGES_MADE=0
+CHANGES_PLANNED=0
 
-# ConfigurationDRY_RUN=false
-
-DRY_RUN=falseif [[ "$1" == "--dry-run" ]]; then
-
-CHANGES_MADE=0    DRY_RUN=true
-
-CHANGES_PLANNED=0fi
-
-
-
-# Parse arguments# Start logging
-
-while [[ "$#" -gt 0 ]]; dolog_info "Starting filesystem hardening script."
-
+# Parse arguments
+while [[ "$#" -gt 0 ]]; do
     case $1 in
+        --dry-run) DRY_RUN=true ;;
+        -h|--help) usage; exit 0 ;;
+        *) echo "Unknown parameter: $1"; usage; exit 1 ;;
+    esac
+    shift
+done
 
-        --dry-run) DRY_RUN=true ;;# Define hardening actions
+# Start logging
+log_info "Starting filesystem hardening script."
 
-        *) echo "Unknown parameter: $1"; exit 1 ;;actions=(
+if [ "$DRY_RUN" = true ]; then
+    log_info "=== FILESYSTEM HARDENING (DRY RUN MODE) ==="
+else
+    log_info "=== FILESYSTEM HARDENING ==="
+fi
 
-    esac    "Setting permissions for /etc/passwd"
+# Check if running as root
+if [ "$EUID" -ne 0 ] && [ "$DRY_RUN" = false ]; then
+    log_error "This script must be run as root (use sudo)"
+    exit 1
+fi
 
-    shift    "Setting permissions for /etc/shadow"
-
-done    "Disabling unnecessary filesystems"
-
+# Define hardening actions
+actions=(
+    "Setting permissions for /etc/passwd"
+    "Setting permissions for /etc/shadow"
+    "Disabling unnecessary filesystems"
 )
 
-# Initialize
-
-if [ "$DRY_RUN" = true ]; then# Execute hardening actions
-
-    log_info "=== FILESYSTEM HARDENING (DRY RUN MODE) ==="for action in "${actions[@]}"; do
-
-else    if [ "$DRY_RUN" = true ]; then
-
-    log_info "=== FILESYSTEM HARDENING ==="        log_info "DRY RUN: $action (no changes will be made)"
-
-fi    else
-
-        # Here you would implement the actual command to perform the action
-
-# Check if running as root        log_info "Executing: $action"
-
-if [ "$EUID" -ne 0 ] && [ "$DRY_RUN" = false ]; then        # Example command (uncomment to use):
-
-    log_error "This script must be run as root (use sudo)"        # chmod 640 /etc/passwd
-
-    exit 1        # chmod 640 /etc/shadow
-
-fi    fi
-
+# Execute hardening actions
+for action in "${actions[@]}"; do
+    if [ "$DRY_RUN" = true ]; then
+        log_info "DRY RUN: $action (no changes will be made)"
+    else
+        log_info "Executing: $action"
+    fi
 done
 
 # Secure critical file permissions
+secure_file_permissions() {
+    log_info "Securing critical file permissions..."
 
-secure_file_permissions() {# Summary log
-
-    log_info "Securing critical file permissions..."if [ "$DRY_RUN" = true ]; then
-
-        log_info "Dry run completed. No changes were made."
-
-    # Define files and their desired permissionselse
-
-    declare -A file_perms=(    log_info "Filesystem hardening completed successfully."
-
-        ["/etc/passwd"]="644"fi
-
+    # Define files and their desired permissions
+    declare -A file_perms=(
+        ["/etc/passwd"]="644"
         ["/etc/shadow"]="000"
-
-        ["/etc/group"]="644"# End logging
-
-        ["/etc/gshadow"]="000"log_info "Filesystem hardening script finished."
+        ["/etc/group"]="644"
+        ["/etc/gshadow"]="000"
         ["/etc/ssh/sshd_config"]="600"
         ["/boot/grub/grub.cfg"]="600"
         ["/boot/grub2/grub.cfg"]="600"
