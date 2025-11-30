@@ -109,13 +109,14 @@ backup_repo() {
     
     echo -e "${BLUE}Creating backup...${NC}"
     
-    # Backup only important directories
+    # Backup entire repository (excluding git metadata and logs)
+    # This ensures filepath changes are properly captured
     tar -czf "$backup_dir/$backup_name.tar.gz" \
         -C "$repo_root" \
         --exclude='.git' \
         --exclude='.backups' \
         --exclude='logs' \
-        scripts/ config/ docs/ 2>/dev/null || {
+        . 2>/dev/null || {
         echo -e "${RED}Error: Failed to create backup${NC}" >&2
         return 1
     }
@@ -153,6 +154,61 @@ restore_backup() {
     return 0
 }
 
+# Detect filepath changes (renames, deletes, new files)
+detect_filepath_changes() {
+    local repo_root="$1"
+    
+    cd "$repo_root"
+    
+    # Get list of files that will be added/deleted/renamed
+    local added_files
+    local deleted_files
+    local renamed_files
+    
+    added_files=$(git diff origin/main --name-status 2>/dev/null | grep "^A" | cut -f2-)
+    deleted_files=$(git diff origin/main --name-status 2>/dev/null | grep "^D" | cut -f2-)
+    renamed_files=$(git diff origin/main --name-status 2>/dev/null | grep "^R" | cut -f2-)
+    
+    if [ -n "$added_files" ] || [ -n "$deleted_files" ] || [ -n "$renamed_files" ]; then
+        return 0  # Changes detected
+    else
+        return 1  # No changes
+    fi
+}
+
+# Display filepath changes that will occur during update
+show_filepath_changes() {
+    local repo_root="$1"
+    
+    cd "$repo_root"
+    
+    local added_files
+    local deleted_files
+    local renamed_files
+    
+    added_files=$(git diff origin/main --name-status 2>/dev/null | grep "^A" | cut -f2-)
+    deleted_files=$(git diff origin/main --name-status 2>/dev/null | grep "^D" | cut -f2-)
+    renamed_files=$(git diff origin/main --name-status 2>/dev/null | grep "^R" | cut -f2-)
+    
+    if [ -n "$added_files" ]; then
+        echo -e "${GREEN}New files to be added:${NC}"
+        echo "$added_files" | sed 's/^/  + /'
+        echo ""
+    fi
+    
+    if [ -n "$deleted_files" ]; then
+        echo -e "${YELLOW}Files to be removed:${NC}"
+        echo "$deleted_files" | sed 's/^/  - /'
+        echo ""
+    fi
+    
+    if [ -n "$renamed_files" ]; then
+        echo -e "${BLUE}Files to be renamed/moved:${NC}"
+        echo "$renamed_files" | sed 's/^/  → /'
+        echo ""
+    fi
+}
+
 # Update from remote (with stash of local changes)
 update_from_remote() {
     local repo_root="$1"
@@ -180,6 +236,15 @@ update_from_remote() {
         fi
     fi
     
+    # Check for filepath changes (new files, deletions, renames)
+    local has_filepath_changes=false
+    if git fetch origin &>/dev/null; then
+        if detect_filepath_changes "$repo_root"; then
+            echo -e "${YELLOW}⚠ Detected filepath changes in update${NC}"
+            has_filepath_changes=true
+        fi
+    fi
+    
     # Create backup before update
     backup_repo "$repo_root" || {
         echo -e "${RED}Aborting update due to backup failure${NC}" >&2
@@ -204,10 +269,19 @@ update_from_remote() {
             echo -e "${YELLOW}3. Initialize repository with latest version${NC}"
         fi
         
-        if [ "$has_changes" = true ]; then
-            echo -e "${YELLOW}4. Apply stashed changes${NC}"
+        if [ "$has_filepath_changes" = true ]; then
+            echo -e "${YELLOW}4. Apply filepath changes (new files, deletions, renames)${NC}"
         fi
         
+        if [ "$has_changes" = true ]; then
+            local step=5
+            [ "$has_filepath_changes" = true ] && step=5 || step=4
+            echo -e "${YELLOW}$step. Apply stashed changes${NC}"
+        fi
+        
+        echo ""
+        echo -e "${BLUE}Filepath Changes Preview:${NC}"
+        show_filepath_changes "$repo_root"
         echo ""
         return 0
     fi
@@ -283,9 +357,17 @@ update_from_remote() {
     # Verify update
     local new_commit
     new_commit=$(git rev-parse --short HEAD 2>/dev/null || echo "unknown")
+    
     echo -e "${GREEN}═══════════════════════════════════════════════════════════${NC}"
     echo -e "${GREEN}✓ Update completed successfully!${NC}"
     echo -e "${GREEN}New version: $new_commit${NC}"
+    
+    if [ "$has_filepath_changes" = true ]; then
+        echo ""
+        echo -e "${BLUE}Filepath changes applied:${NC}"
+        show_filepath_changes "$repo_root"
+    fi
+    
     echo -e "${GREEN}═══════════════════════════════════════════════════════════${NC}"
 }
 
@@ -357,13 +439,15 @@ QUICK START EXAMPLES:
      sudo ./linux-hardening-scripts/scripts/utils/updater.sh restore
 
 FEATURES:
-  • Automatic backup creation before updates
+  • Automatic backup creation before updates (full repository)
   • Backup rotation (keeps last 5 backups)
   • Local change preservation (stashed and reapplied)
-  • Dry-run mode to preview changes
+  • Filepath change detection (new files, deletions, renames)
+  • Dry-run mode to preview changes including filepath updates
   • Automatic restoration on failure
   • Remote repository synchronization
   • Conflict detection and handling
+  • Complete repository structure management
 
 WORKFLOW:
   1. Check status: sudo ./scripts/utils/updater.sh status
