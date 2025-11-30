@@ -95,13 +95,11 @@ For comprehensive help documentation, see **[HELP_GUIDE.md](docs/HELP_GUIDE.md)*
    - Restricts cron/at access to authorized users
    - Audits for world-writable and unowned files
 
-8. **kernel-hardening.sh** - Kernel security parameters
-   - Configures sysctl security parameters (60+ settings)
-   - Enables ASLR and protects kernel pointers
-   - Disables IP forwarding and source routing
-   - Implements SYN cookie protection
-   - Restricts kernel module loading
-   - Disables unused network protocols (DCCP, SCTP, RDS, etc.)
+8. **kernel-hardening.sh** - REMOVED
+   - NOTE: The kernel hardening module has been removed from this distribution.
+     Kernel/sysctl tuning is highly environment-specific; if you require
+     equivalent functionality, add your own sysctl rules under /etc/sysctl.d/
+     or maintain a separate kernel-hardening script tailored for your systems.
 
 9. **service-hardening.sh** - Service management
    - Identifies and disables unnecessary services
@@ -132,7 +130,7 @@ linux-hardening-scripts/
 │   │   ├── firewall-setup.sh
 │   │   ├── user-security.sh
 │   │   ├── filesystem-hardening.sh
-│   │   ├── kernel-hardening.sh
+│   │   ├── (kernel-hardening removed)
 │   │   └── service-hardening.sh
 │   ├── utils/               # Utility scripts
 │   │   ├── logger.sh
@@ -280,8 +278,8 @@ sudo ./linux-hardening-scripts/scripts/hardening/firewall-setup.sh --dry-run
 # SSH hardening
 sudo ./linux-hardening-scripts/scripts/hardening/ssh-hardening.sh --dry-run
 
-# Kernel hardening
-sudo ./linux-hardening-scripts/scripts/hardening/kernel-hardening.sh --dry-run
+# Kernel hardening (removed)
+# The kernel-hardening module has been removed from this distribution.
 
 # Service hardening
 sudo ./linux-hardening-scripts/scripts/hardening/service-hardening.sh --dry-run
@@ -330,7 +328,7 @@ This tool is designed with compartmentalization in mind, allowing you to customi
 | `firewall-setup` | Firewall rules and policies | 3.4 |
 | `bootloader-hardening` | GRUB security and permissions | 1.5 |
 | `filesystem-hardening` | Mount options and permissions | 1.1-1.10 |
-| `kernel-hardening` | sysctl parameters and core dumps | 1.1, 4.3 |
+| `kernel-hardening` | REMOVED (module removed from repository) | 1.1, 4.3 |
 | `service-hardening` | Service management | 2.x |
 | `user-security` | User permissions and umask | 5.1-5.5, 6.x |
 

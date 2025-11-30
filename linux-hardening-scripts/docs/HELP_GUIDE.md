@@ -145,7 +145,7 @@ All modules are listed with their purposes and CIS control mappings:
 - `bootloader-hardening` - GRUB security and permissions (CIS 1.5)
 - `filesystem-hardening` - Filesystem mounts and permissions (CIS 1.1-1.10)
 - `firewall-setup` - Firewall and iptables configuration (CIS 3.4)
-- `kernel-hardening` - Kernel parameters and core dumps (CIS 1.1, 4.3)
+- `kernel-hardening` - REMOVED (module removed from repository)
 - `network-hardening` - Network stack hardening (CIS 3.1-3.3)
 - `service-hardening` - Service management and removal (CIS 2.x)
 - `ssh-hardening` - SSH daemon configuration (CIS 5.2)

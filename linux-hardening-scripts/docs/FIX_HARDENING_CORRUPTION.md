@@ -5,30 +5,18 @@ Fixed severe file corruption in 4 hardening scripts that caused "exit: 1}: numer
 
 ## Corrupted Files Fixed
 
-### 1. ✅ `scripts/hardening/kernel-hardening.sh`
-**Status:** FIXED
-**Issues Found:**
-- Duplicate shebangs (`#!/bin/bash` appearing twice)
-- Mangled function definitions with broken code fragments
-- Incorrect exit syntax: `exit 1}` (non-numeric)
-- Mixed and fragmented code lines
-- Broken variable initialization
+### 1. REMOVED: `scripts/hardening/kernel-hardening.sh`
 
-**Fixes Applied:**
-- Cleaned entire file structure
-- Removed duplicate shebangs
-- Fixed all function definitions:
-  - `set_sysctl()`
-  - `configure_network_security()`
-  - `configure_kernel_security()`
-  - `configure_filesystem_security()`
-  - `disable_unused_modules()`
-  - `disable_usb_storage()`
-- Corrected exit codes to numeric format (`exit 1`)
-- Restored proper argument parsing
-- Verified all logging calls use correct function names
+**Status:** REMOVED FROM REPOSITORY
 
-**File Size:** 357 lines → Properly formatted and functional
+The `kernel-hardening` module was removed from this project. Kernel/sysctl
+configuration is highly environment-dependent; administrators should apply
+system-specific sysctl rules under `/etc/sysctl.d/` or introduce their own
+custom hardening scripts as needed.
+
+If you previously relied on the kernel-hardening script, please migrate any
+customized rules into `/etc/sysctl.d/99-hardening.conf` or an equivalent
+configuration management workflow.
 
 ---
 
@@ -165,20 +153,17 @@ All corrupted `exit 1}` statements have been corrected to `exit 1` throughout th
 To verify the fixes:
 
 ```bash
-# Test syntax
-bash -n scripts/hardening/kernel-hardening.sh
+# Test syntax (skip kernel-hardening; it has been removed)
 bash -n scripts/hardening/user-security.sh
 bash -n scripts/hardening/firewall-setup.sh
 bash -n scripts/hardening/service-hardening.sh
 
-# Test with dry-run
-sudo scripts/hardening/kernel-hardening.sh --dry-run
+# Test with dry-run (skip kernel-hardening)
 sudo scripts/hardening/user-security.sh --dry-run
 sudo scripts/hardening/firewall-setup.sh --dry-run
 sudo scripts/hardening/service-hardening.sh --dry-run
 
-# Test help/usage
-scripts/hardening/kernel-hardening.sh --help
+# Test help/usage (skip kernel-hardening)
 scripts/hardening/user-security.sh --help
 scripts/hardening/firewall-setup.sh --help
 scripts/hardening/service-hardening.sh --help
@@ -203,7 +188,7 @@ To prevent similar corruption in the future:
 
 | File | Lines | Status | Key Fixes |
 |------|-------|--------|-----------|
-| kernel-hardening.sh | 357 | ✅ Fixed | Duplicate shebang, mangled functions, exit syntax |
+| kernel-hardening.sh | REMOVED | ❌ Removed | This module was removed from the repository |
 | user-security.sh | 336 | ✅ Fixed | Fragmented code, duplicate sections, exit syntax |
 | firewall-setup.sh | 369 | ✅ Fixed | Duplicate content, incomplete functions |
 | service-hardening.sh | 346 | ✅ Fixed | Severe fragmentation, mixed implementations |

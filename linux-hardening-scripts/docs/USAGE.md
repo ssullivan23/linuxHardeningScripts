@@ -204,33 +204,11 @@ sudo bash scripts/hardening/filesystem-hardening.sh
 - World-writable files: `find / -xdev -type f -perm -002`
 - Unowned files: `find / -xdev \( -nouser -o -nogroup \)`
 
-### 5. Kernel Hardening
+### 5. Kernel Hardening (REMOVED)
 
-**What it does:** Configures kernel security parameters via sysctl.
-
-```bash
-# Preview changes
-sudo bash scripts/hardening/kernel-hardening.sh --dry-run
-
-# Apply changes
-sudo bash scripts/hardening/kernel-hardening.sh
-```
-
-**Key Actions:**
-- Enables ASLR (Address Space Layout Randomization)
-- Disables IP forwarding and source routing
-- Enables reverse path filtering
-- Configures SYN cookies for DDoS protection
-- Restricts kernel pointer exposure
-- Disables unused network protocols (60+ disabled)
-- Protects hardlinks and symlinks
-
-**Configuration saved to:** `/etc/sysctl.d/99-hardening.conf`
-
-**View current kernel parameters:**
-```bash
-sysctl -a | grep -E 'net.ipv4|kernel|fs.protected'
-```
+The Kernel Hardening module has been removed from this repository. Kernel
+parameter tuning is environment-specific. Manage sysctl settings via
+`/etc/sysctl.d/` or your configuration management system.
 
 ### 6. Service Hardening
 
@@ -337,11 +315,10 @@ ssh user@your-server
 
 Recommended sequence:
 1. `filesystem-hardening.sh` (foundational)
-2. `kernel-hardening.sh` (low-level)
-3. `user-security.sh` (authentication)
-4. `ssh-hardening.sh` (remote access)
-5. `firewall-setup.sh` (network)
-6. `service-hardening.sh` (services)
+2. `user-security.sh` (authentication)
+3. `ssh-hardening.sh` (remote access)
+4. `firewall-setup.sh` (network)
+5. `service-hardening.sh` (services)
 
 ### 4. Review Logs After Execution
 
@@ -356,11 +333,11 @@ tail -f logs/hardening_summary.log
 ### 5. Reboot After Major Changes
 
 ```bash
-# After kernel/filesystem hardening
+# After filesystem hardening (or other major changes)
 sudo reboot
 
-# Verify changes persisted
-sudo bash scripts/hardening/kernel-hardening.sh --dry-run
+# Verify sysctl changes (if you manage them via /etc/sysctl.d)
+sudo sysctl -p /etc/sysctl.d/99-hardening.conf || true
 ```
 
 ### 6. Document Your Customizations
@@ -500,7 +477,6 @@ bash scripts/hardening/ssh-hardening.sh
 bash scripts/hardening/firewall-setup.sh
 # Skip user-security if managed by LDAP
 # bash scripts/hardening/user-security.sh
-bash scripts/hardening/kernel-hardening.sh
 ```
 
 ## Support and Resources

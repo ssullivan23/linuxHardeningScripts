@@ -42,7 +42,7 @@ sudo ./linux-hardening-scripts/tests/test-hardening.sh --dry-run-only
 | `bootloader-hardening` | GRUB security |
 | `firewall-setup` | Firewall rules and policies |
 | `filesystem-hardening` | Mount options and permissions |
-| `kernel-hardening` | Kernel parameters |
+| `kernel-hardening` | REMOVED (module removed from repository) |
 | `service-hardening` | Service management |
 | `user-security` | User permissions and umask |
 

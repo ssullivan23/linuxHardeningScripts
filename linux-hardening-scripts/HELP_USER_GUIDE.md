@@ -40,7 +40,7 @@ AVAILABLE MODULES:
   bootloader-hardening          GRUB security (CIS 1.5)
   filesystem-hardening          Mount options and permissions (CIS 1.1-1.10)
   firewall-setup                Firewall configuration (CIS 3.4)
-  kernel-hardening              Kernel parameters (CIS 1.1, 4.3)
+   kernel-hardening              REMOVED (module removed from repository)
   network-hardening             Network stack (CIS 3.1-3.3)
   service-hardening             Service management (CIS 2.x)
   ssh-hardening                 SSH configuration (CIS 5.2)

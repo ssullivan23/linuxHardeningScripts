@@ -67,7 +67,6 @@ AVAILABLE MODULES:
   bootloader-hardening          GRUB security and permissions (CIS 1.5)
   filesystem-hardening          Filesystem mounts and permissions (CIS 1.1-1.10)
   firewall-setup                Firewall and iptables configuration (CIS 3.4)
-  kernel-hardening              Kernel parameters and core dumps (CIS 1.1, 4.3)
   network-hardening             Network stack hardening (CIS 3.1-3.3)
   service-hardening             Service management and removal (CIS 2.x)
   ssh-hardening                 SSH daemon configuration (CIS 5.2)
@@ -199,7 +198,12 @@ should_run_module() {
             fi
         done
     fi
-    
+    # Explicitly skip removed/obsolete modules
+    module_name=$(basename "$module" .sh)
+    if [ "$module_name" = "kernel-hardening" ]; then
+        return 1
+    fi
+
     # Check if module is enabled in config
     module_name=$(basename "$module" .sh)
     case $module_name in
@@ -211,9 +215,6 @@ should_run_module() {
             ;;
         firewall-setup)
             [ "${ENABLE_FIREWALL:-yes}" = "yes" ] && return 0 || return 1
-            ;;
-        kernel-hardening)
-            [ "${ENABLE_KERNEL_HARDENING:-yes}" = "yes" ] && return 0 || return 1
             ;;
         service-hardening)
             [ "${ENABLE_SERVICE_HARDENING:-yes}" = "yes" ] && return 0 || return 1
