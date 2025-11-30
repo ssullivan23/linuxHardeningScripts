@@ -14,26 +14,71 @@ A comprehensive set of Bash scripts designed to help novice and experienced syst
 - **🎯 Modular Design**: Run scripts individually or orchestrate all at once
 - **📈 Change Tracking**: Counts and reports exactly what was modified
 - **🛡️ Path-Safe**: Scripts work correctly from any directory and maintain proper paths
+- **🧩 Compartmentalized Modules**: Enable/disable specific hardening controls selectively
+- **📋 CIS Benchmark Aligned**: Implements CIS Ubuntu Linux 22.04 LTS hardening controls
+- **❓ Built-in Help**: Use `-h` or `--help` to display comprehensive usage information
+
+## 🆘 Getting Help
+
+All scripts include comprehensive help messages:
+
+```bash
+# View main script help with all options and examples
+sudo ./linux-hardening-scripts/scripts/main.sh --help
+
+# View test script help
+sudo ./linux-hardening-scripts/tests/test-hardening.sh -h
+
+# Quick syntax reminder (without detailed help)
+./linux-hardening-scripts/scripts/main.sh --invalid  # Shows usage_short
+```
+
+The help displays:
+- All available command-line options
+- Complete list of hardening modules with CIS control mappings
+- Quick start examples for common use cases
+- Recommended workflow and best practices
+- References to detailed documentation
+
+For comprehensive help documentation, see **[HELP_GUIDE.md](docs/HELP_GUIDE.md)** and **[HELP_SYSTEM.md](HELP_SYSTEM.md)**.
 
 ## 📦 What's Included
 
-### Hardening Scripts
+### Hardening Modules (CIS Ubuntu 22.04 Benchmark Based)
 
-1. **ssh-hardening.sh** - Secure SSH configuration
+1. **account-security.sh** - User account and access control hardening
+   - Password expiration and aging policies (CIS 5.1)
+   - Sudo configuration and logging (CIS 5.3-5.4)
+   - SSH configuration security (CIS 5.2)
+   - Account lockout policies
+
+2. **ssh-hardening.sh** - Secure SSH configuration
    - Disables root login and password authentication
    - Enforces SSH key-based authentication
    - Configures strong ciphers, MACs, and key exchange algorithms
    - Sets connection timeouts and rate limits
    - Disables dangerous features (X11 forwarding, agent forwarding, etc.)
 
-2. **firewall-setup.sh** - Firewall configuration
+3. **network-hardening.sh** - Network stack and protocol hardening
+   - IP forwarding controls (CIS 3.1)
+   - ICMP redirect protection (CIS 3.2)
+   - Source route protection (CIS 3.3)
+   - SYN flood protection (CIS 3.3)
+   - Suspicious packet logging
+
+4. **firewall-setup.sh** - Firewall configuration
    - Auto-detects firewall type (firewalld, UFW, or iptables)
    - Implements default-deny policies
    - Configures SSH access while blocking unnecessary traffic
    - Enables packet logging and SYN flood protection
    - Handles both IPv4 and IPv6
 
-3. **user-security.sh** - User account and password hardening
+5. **bootloader-hardening.sh** - GRUB bootloader security
+   - Bootloader permissions (CIS 1.5)
+   - Superuser password protection
+   - Single user mode authentication
+
+6. **user-security.sh** - User account and password hardening
    - Enforces strong password policies (length, complexity)
    - Configures password aging and expiration
    - Implements account lockout after failed login attempts
@@ -41,7 +86,7 @@ A comprehensive set of Bash scripts designed to help novice and experienced syst
    - Locks inactive accounts
    - Sets secure umask defaults
 
-4. **filesystem-hardening.sh** - Filesystem security
+7. **filesystem-hardening.sh** - Filesystem security
    - Secures critical file permissions (/etc/passwd, /etc/shadow, etc.)
    - Disables unused/dangerous filesystems
    - Reviews partition mount options (/tmp, /var)
@@ -49,7 +94,7 @@ A comprehensive set of Bash scripts designed to help novice and experienced syst
    - Restricts cron/at access to authorized users
    - Audits for world-writable and unowned files
 
-5. **kernel-hardening.sh** - Kernel security parameters
+8. **kernel-hardening.sh** - Kernel security parameters
    - Configures sysctl security parameters (60+ settings)
    - Enables ASLR and protects kernel pointers
    - Disables IP forwarding and source routing
@@ -57,7 +102,7 @@ A comprehensive set of Bash scripts designed to help novice and experienced syst
    - Restricts kernel module loading
    - Disables unused network protocols (DCCP, SCTP, RDS, etc.)
 
-6. **service-hardening.sh** - Service management
+9. **service-hardening.sh** - Service management
    - Identifies and disables unnecessary services
    - Verifies essential services are running
    - Audits network-listening services
@@ -69,6 +114,12 @@ A comprehensive set of Bash scripts designed to help novice and experienced syst
 - **logger.sh** - Centralized logging with timestamps and log levels
 - **validation.sh** - Permission and configuration validation
 - **reporting.sh** - Summary report generation
+
+### Configuration Files
+
+- **modules.conf** - Enable/disable individual hardening modules
+- **hardening.conf** - System-wide hardening parameters
+- **exclusions.conf** - Services and packages to exclude from hardening
 
 ## 📁 Directory Structure
 
@@ -123,46 +174,92 @@ linux-hardening-scripts/
 
 ### Usage
 
-#### Run All Hardening Scripts (Dry Run)
+#### Run All Hardening Modules (Dry Run - Recommended First Step)
 
 **Always start with a dry run to see what would change:**
 
 ```bash
-# The script can be run from any directory - it maintains proper paths
+# Preview all hardening changes without modification
 sudo ./linux-hardening-scripts/scripts/main.sh --dry-run
 ```
 
 #### Apply All Hardening Measures
 
 ```bash
+# Execute all enabled hardening modules
 sudo ./linux-hardening-scripts/scripts/main.sh
 ```
 
-#### Run Individual Scripts
+#### Selective Module Execution (Compartmentalization)
 
-Each script can be run independently and will maintain proper paths to utility scripts and configuration files:
+Skip specific modules while running others:
 
 ```bash
-# SSH hardening (dry run)
-sudo ./linux-hardening-scripts/scripts/hardening/ssh-hardening.sh --dry-run
+# Skip SSH hardening
+sudo ./linux-hardening-scripts/scripts/main.sh --exclude-modules ssh-hardening
 
-# Apply SSH hardening
-sudo ./linux-hardening-scripts/scripts/hardening/ssh-hardening.sh
+# Skip multiple modules
+sudo ./linux-hardening-scripts/scripts/main.sh --exclude-modules firewall-setup,network-hardening
 
-# Firewall setup (dry run)
+# Dry run excluding certain modules
+sudo ./linux-hardening-scripts/scripts/main.sh --dry-run --exclude-modules service-hardening
+```
+
+#### Module Configuration
+
+Enable or disable modules by editing `config/modules.conf`:
+
+```bash
+# Edit the modules configuration
+nano ./linux-hardening-scripts/config/modules.conf
+
+# Available modules:
+# ENABLE_ACCOUNT_SECURITY="yes"
+# ENABLE_FILESYSTEM_HARDENING="yes"
+# ENABLE_NETWORK_HARDENING="yes"
+# ENABLE_SSH_HARDENING="yes"
+# ENABLE_FIREWALL="yes"
+# ENABLE_BOOTLOADER_HARDENING="yes"
+# ... and more
+
+# Then run with your custom configuration
+sudo ./linux-hardening-scripts/scripts/main.sh --dry-run
+```
+
+#### Run Individual Modules
+
+Each module can be run independently:
+
+```bash
+# Account security hardening (dry run)
+sudo ./linux-hardening-scripts/scripts/hardening/account-security.sh --dry-run
+
+# Apply account security hardening
+sudo ./linux-hardening-scripts/scripts/hardening/account-security.sh
+
+# Network hardening (dry run)
+sudo ./linux-hardening-scripts/scripts/hardening/network-hardening.sh --dry-run
+
+# Bootloader hardening
+sudo ./linux-hardening-scripts/scripts/hardening/bootloader-hardening.sh --dry-run
+
+# Firewall setup
 sudo ./linux-hardening-scripts/scripts/hardening/firewall-setup.sh --dry-run
 
-# User security hardening
-sudo ./linux-hardening-scripts/scripts/hardening/user-security.sh --dry-run
-
-# Filesystem hardening
-sudo ./linux-hardening-scripts/scripts/hardening/filesystem-hardening.sh --dry-run
+# SSH hardening
+sudo ./linux-hardening-scripts/scripts/hardening/ssh-hardening.sh --dry-run
 
 # Kernel hardening
 sudo ./linux-hardening-scripts/scripts/hardening/kernel-hardening.sh --dry-run
 
 # Service hardening
 sudo ./linux-hardening-scripts/scripts/hardening/service-hardening.sh --dry-run
+
+# Filesystem hardening
+sudo ./linux-hardening-scripts/scripts/hardening/filesystem-hardening.sh --dry-run
+
+# User security hardening
+sudo ./linux-hardening-scripts/scripts/hardening/user-security.sh --dry-run
 ```
 
 #### Customizing Log Location
@@ -173,6 +270,58 @@ By default, logs are written to the `logs/` directory in the repository. You can
 sudo ./linux-hardening-scripts/scripts/main.sh --log-file /var/log/hardening.log
 ```
 
+## 🧩 Compartmentalization & Module Control
+
+This tool is designed with compartmentalization in mind, allowing you to customize exactly which hardening controls are applied to your system.
+
+### Controlling Module Execution
+
+**Three ways to control which modules run:**
+
+1. **Command-line Exclusion** (temporary):
+   ```bash
+   sudo ./linux-hardening-scripts/scripts/main.sh --exclude-modules module1,module2
+   ```
+
+2. **Configuration File** (persistent):
+   Edit `config/modules.conf` to enable/disable modules for your deployment.
+
+3. **Individual Module Run**:
+   Run individual hardening modules independently.
+
+### Available Modules
+
+| Module | Purpose | CIS Controls |
+|--------|---------|-------------|
+| `account-security` | Password aging, sudo config | 5.1-5.4, 6.x |
+| `network-hardening` | IP forwarding, ICMP redirects, SYN protection | 3.1-3.3 |
+| `ssh-hardening` | SSH daemon security | 5.2.x |
+| `firewall-setup` | Firewall rules and policies | 3.4 |
+| `bootloader-hardening` | GRUB security and permissions | 1.5 |
+| `filesystem-hardening` | Mount options and permissions | 1.1-1.10 |
+| `kernel-hardening` | sysctl parameters and core dumps | 1.1, 4.3 |
+| `service-hardening` | Service management | 2.x |
+| `user-security` | User permissions and umask | 5.1-5.5, 6.x |
+
+## 📋 CIS Ubuntu Linux 22.04 LTS Benchmark Coverage
+
+This tool implements controls from the **CIS Ubuntu Linux 22.04 LTS Benchmark v3.0.0**. The mapping includes:
+
+### Level 1 Controls (Essential)
+- Account security and password policies
+- SSH hardening
+- Filesystem permissions and mounts
+- Firewall configuration
+- Kernel hardening parameters
+
+### Level 2 Controls (Recommended)
+- Advanced kernel parameters
+- Audit and logging configuration
+- Service hardening
+- Network stack optimization
+
+**Note:** Not all CIS controls can be automated. Some require manual intervention or are environment-specific. Review the CIS benchmark documentation for complete coverage.
+
 ## ⚠️ Important Notes
 
 ### Before Running
@@ -182,6 +331,7 @@ sudo ./linux-hardening-scripts/scripts/main.sh --log-file /var/log/hardening.log
 3. **Ensure you have console/physical access** (in case SSH gets misconfigured)
 4. **Backup your system** before applying changes
 5. **Have a recovery plan** ready
+6. **Consider your compliance requirements** and which modules you need
 
 ### After Running
 
@@ -189,6 +339,7 @@ sudo ./linux-hardening-scripts/scripts/main.sh --log-file /var/log/hardening.log
 2. **Restart affected services** or reboot as recommended
 3. **Review the summary logs** in the `logs/` directory
 4. **Verify system functionality** matches your requirements
+5. **Verify CIS compliance** with benchmark assessment tools
 
 ### Configuration Backups
 
@@ -204,21 +355,41 @@ All scripts automatically create timestamped backups:
 
 ## 🧪 Testing
 
-Test scripts can be run from any directory and will find all hardening scripts automatically:
+Test scripts can be run from any directory to validate all hardening modules:
 
 ```bash
-# Run all tests in dry-run mode first
-sudo ./linux-hardening-scripts/tests/test-hardening.sh --dry-run
-
-# Run actual tests
+# Run all module tests (dry-run first, then actual)
 sudo ./linux-hardening-scripts/tests/test-hardening.sh
+
+# Run only dry-run tests (no actual changes)
+sudo ./linux-hardening-scripts/tests/test-hardening.sh --dry-run-only
+
+# Test specific modules, excluding others
+sudo ./linux-hardening-scripts/tests/test-hardening.sh --exclude-modules firewall-setup,network-hardening
 ```
 
-The test script will:
-1. Automatically discover all hardening scripts
-2. Run each in dry-run mode first
-3. Execute actual tests if dry run succeeds
-4. Generate test reports in the logs directory
+### Test Execution Flow
+
+The test script:
+1. **Phase 1**: Runs all modules in dry-run mode for safety verification
+2. **Phase 2**: Executes actual tests (unless `--dry-run-only` is specified)
+3. **Reporting**: Generates detailed test reports in the `logs/` directory
+
+### Recommended Testing Workflow
+
+```bash
+# 1. Start with dry-run-only testing
+sudo ./linux-hardening-scripts/tests/test-hardening.sh --dry-run-only
+
+# 2. Review logs and output
+cat logs/hardening_summary.log
+
+# 3. Run full tests in staging/test environment
+sudo ./linux-hardening-scripts/tests/test-hardening.sh
+
+# 4. Review detailed results
+tail -n 100 logs/hardening_summary.log
+```
 
 ## 🤝 Contributing
 
