@@ -1,7 +1,5 @@
 #!/bin/bash
 
-#!/bin/bash
-
 ################################################################################
 # Firewall Setup Script
 # Purpose: Configure firewall rules using iptables/firewalld
@@ -25,10 +23,17 @@ FIREWALL_TYPE=""
 while [[ "$#" -gt 0 ]]; do
     case $1 in
         --dry-run) DRY_RUN=true ;;
-        *) echo "Unknown parameter: $1"; exit 1 ;;
+        -h|--help) usage; exit 0 ;;
+        *) echo "Unknown parameter: $1"; usage; exit 1 ;;
     esac
     shift
 done
+
+# Function to display usage
+usage() {
+    echo "Usage: $0 [--dry-run]"
+    echo "  --dry-run    Show what changes would be made without applying them"
+}
 
 # Initialize
 if [ "$DRY_RUN" = true ]; then
@@ -63,7 +68,7 @@ detect_firewall() {
 # Setup firewalld
 setup_firewalld() {
     log_info "Configuring firewalld..."
-    
+
     # Start firewalld service
     if [ "$DRY_RUN" = true ]; then
         log_info "[DRY RUN] Would enable and start firewalld service"
@@ -74,8 +79,8 @@ setup_firewalld() {
         log_info "Enabled and started firewalld"
         ((CHANGES_MADE++))
     fi
-    
-    # Set default zone to drop
+
+    # Set default zone to public
     if [ "$DRY_RUN" = true ]; then
         log_info "[DRY RUN] Would set default zone to public"
         ((CHANGES_PLANNED++))
@@ -84,7 +89,7 @@ setup_firewalld() {
         log_info "Set default zone to public"
         ((CHANGES_MADE++))
     fi
-    
+
     # Allow SSH
     if [ "$DRY_RUN" = true ]; then
         log_info "[DRY RUN] Would allow SSH (port 22)"
@@ -94,7 +99,7 @@ setup_firewalld() {
         log_info "Allowed SSH service"
         ((CHANGES_MADE++))
     fi
-    
+
     # Drop invalid packets
     if [ "$DRY_RUN" = true ]; then
         log_info "[DRY RUN] Would configure to drop invalid packets"
@@ -104,7 +109,7 @@ setup_firewalld() {
         log_info "Configured invalid packet dropping"
         ((CHANGES_MADE++))
     fi
-    
+
     # Enable logging for dropped packets
     if [ "$DRY_RUN" = true ]; then
         log_info "[DRY RUN] Would enable logging for denied packets"
@@ -114,7 +119,7 @@ setup_firewalld() {
         log_info "Enabled logging for denied packets"
         ((CHANGES_MADE++))
     fi
-    
+
     # Reload firewall
     if [ "$DRY_RUN" = false ]; then
         firewall-cmd --reload &>/dev/null
@@ -125,7 +130,7 @@ setup_firewalld() {
 # Setup UFW
 setup_ufw() {
     log_info "Configuring UFW..."
-    
+
     # Set default policies
     if [ "$DRY_RUN" = true ]; then
         log_info "[DRY RUN] Would set default deny incoming"
@@ -137,7 +142,7 @@ setup_ufw() {
         log_info "Set default policies: deny incoming, allow outgoing"
         ((CHANGES_MADE+=2))
     fi
-    
+
     # Allow SSH
     if [ "$DRY_RUN" = true ]; then
         log_info "[DRY RUN] Would allow SSH (port 22)"
@@ -147,7 +152,7 @@ setup_ufw() {
         log_info "Allowed SSH on port 22/tcp"
         ((CHANGES_MADE++))
     fi
-    
+
     # Enable logging
     if [ "$DRY_RUN" = true ]; then
         log_info "[DRY RUN] Would enable firewall logging"
@@ -157,7 +162,7 @@ setup_ufw() {
         log_info "Enabled UFW logging"
         ((CHANGES_MADE++))
     fi
-    
+
     # Enable UFW
     if [ "$DRY_RUN" = true ]; then
         log_info "[DRY RUN] Would enable UFW"
@@ -172,7 +177,7 @@ setup_ufw() {
 # Setup iptables
 setup_iptables() {
     log_info "Configuring iptables..."
-    
+
     # Flush existing rules
     if [ "$DRY_RUN" = true ]; then
         log_info "[DRY RUN] Would flush existing iptables rules"
@@ -183,7 +188,7 @@ setup_iptables() {
         log_info "Flushed existing rules"
         ((CHANGES_MADE++))
     fi
-    
+
     # Set default policies
     if [ "$DRY_RUN" = true ]; then
         log_info "[DRY RUN] Would set default policies to DROP"
@@ -195,7 +200,7 @@ setup_iptables() {
         log_info "Set default policies: INPUT DROP, FORWARD DROP, OUTPUT ACCEPT"
         ((CHANGES_MADE++))
     fi
-    
+
     # Allow loopback
     if [ "$DRY_RUN" = true ]; then
         log_info "[DRY RUN] Would allow loopback traffic"
@@ -205,7 +210,7 @@ setup_iptables() {
         log_info "Allowed loopback traffic"
         ((CHANGES_MADE++))
     fi
-    
+
     # Allow established connections
     if [ "$DRY_RUN" = true ]; then
         log_info "[DRY RUN] Would allow established and related connections"
@@ -215,7 +220,7 @@ setup_iptables() {
         log_info "Allowed established and related connections"
         ((CHANGES_MADE++))
     fi
-    
+
     # Allow SSH
     if [ "$DRY_RUN" = true ]; then
         log_info "[DRY RUN] Would allow SSH (port 22)"
@@ -225,7 +230,7 @@ setup_iptables() {
         log_info "Allowed SSH on port 22"
         ((CHANGES_MADE++))
     fi
-    
+
     # Drop invalid packets
     if [ "$DRY_RUN" = true ]; then
         log_info "[DRY RUN] Would drop invalid packets"
@@ -235,7 +240,7 @@ setup_iptables() {
         log_info "Configured to drop invalid packets"
         ((CHANGES_MADE++))
     fi
-    
+
     # Protection against SYN flood
     if [ "$DRY_RUN" = true ]; then
         log_info "[DRY RUN] Would enable SYN flood protection"
@@ -245,7 +250,7 @@ setup_iptables() {
         log_info "Enabled SYN flood protection"
         ((CHANGES_MADE++))
     fi
-    
+
     # Log dropped packets
     if [ "$DRY_RUN" = true ]; then
         log_info "[DRY RUN] Would enable logging for dropped packets"
@@ -255,7 +260,7 @@ setup_iptables() {
         log_info "Enabled logging for dropped packets"
         ((CHANGES_MADE++))
     fi
-    
+
     # Save rules
     if [ "$DRY_RUN" = false ]; then
         if command -v iptables-save &> /dev/null; then
@@ -301,69 +306,3 @@ else
 fi
 
 exit 0
-# This script sets up a firewall using iptables or firewalld.
-# It includes options for a dry run to show what rules would be applied and logs the configuration steps.
-
-# Load logger utility
-source ../utils/logger.sh
-
-# Default values
-DRY_RUN=false
-FIREWALL_TOOL="iptables"  # Default to iptables
-
-# Function to display usage
-usage() {
-    echo "Usage: $0 [--dry-run] [--firewall-tool <iptables|firewalld>]"
-    exit 1
-}
-
-# Parse command line arguments
-while [[ "$#" -gt 0 ]]; do
-    case $1 in
-        --dry-run) DRY_RUN=true ;;
-        --firewall-tool) FIREWALL_TOOL="$2"; shift ;;
-        *) usage ;;
-    esac
-    shift
-done
-
-# Log the start of the script
-log_info "Starting firewall setup with tool: $FIREWALL_TOOL"
-
-# Function to apply firewall rules
-apply_firewall_rules() {
-    if [ "$FIREWALL_TOOL" == "iptables" ]; then
-        if [ "$DRY_RUN" == true ]; then
-            log_info "Dry run: iptables rules would be applied"
-            # Example rules for dry run
-            echo "iptables -A INPUT -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT"
-            echo "iptables -A INPUT -p tcp --dport 22 -j ACCEPT"
-            echo "iptables -A INPUT -j DROP"
-        else
-            log_info "Applying iptables rules"
-            iptables -A INPUT -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
-            iptables -A INPUT -p tcp --dport 22 -j ACCEPT
-            iptables -A INPUT -j DROP
-        fi
-    elif [ "$FIREWALL_TOOL" == "firewalld" ]; then
-        if [ "$DRY_RUN" == true ]; then
-            log_info "Dry run: firewalld rules would be applied"
-            # Example rules for dry run
-            echo "firewall-cmd --zone=public --add-service=ssh --dry-run"
-            echo "firewall-cmd --zone=public --set-target=DROP --dry-run"
-        else
-            log_info "Applying firewalld rules"
-            firewall-cmd --zone=public --add-service=ssh
-            firewall-cmd --zone=public --set-target=DROP
-        fi
-    else
-        log_error "Unsupported firewall tool: $FIREWALL_TOOL"
-        exit 1
-    fi
-}
-
-# Call the function to apply firewall rules
-apply_firewall_rules
-
-# Log the completion of the script
-log_info "Firewall setup completed"
