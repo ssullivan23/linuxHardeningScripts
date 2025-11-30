@@ -129,6 +129,12 @@ run_test() {
 should_test_module() {
     local module=$1
     
+    # Skip removed/obsolete modules
+    module_name=$(basename "$module" .sh)
+    if [ "$module_name" = "kernel-hardening" ]; then
+        return 1
+    fi
+    
     if [ -n "$EXCLUDED_MODULES" ]; then
         IFS=',' read -ra EXCLUDED <<< "$EXCLUDED_MODULES"
         for excluded in "${EXCLUDED[@]}"; do
