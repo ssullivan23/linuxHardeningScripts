@@ -10,6 +10,14 @@ check_root() {
     fi
 }
 
+# Function to validate permissions
+validate_permissions() {
+    if [ "$(id -u)" -ne 0 ]; then
+        echo "Error: This script must be run as root or with sudo." >&2
+        exit 1
+    fi
+}
+
 # Function to validate input parameters
 validate_input() {
     if [ -z "$1" ]; then
@@ -27,10 +35,3 @@ check_commands() {
         fi
     done
 }
-
-# Main execution
-check_root
-validate_input "$1"
-check_commands ssh iptables useradd
-
-echo "Validation completed successfully." | tee -a /var/log/linux-hardening.log
