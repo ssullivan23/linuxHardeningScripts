@@ -165,11 +165,19 @@ update_from_remote() {
     echo -e "${BLUE}═══════════════════════════════════════════════════════════${NC}"
     echo ""
     
-    # Check for local changes
+    # Check if HEAD exists (repository has commits)
+    local has_commits=false
+    if git rev-parse HEAD &>/dev/null; then
+        has_commits=true
+    fi
+    
+    # Check for local changes only if repository has commits
     local has_changes=false
-    if ! git diff-index --quiet HEAD --; then
-        echo -e "${YELLOW}⚠ Detected local changes${NC}"
-        has_changes=true
+    if [ "$has_commits" = true ]; then
+        if ! git diff-index --quiet HEAD --; then
+            echo -e "${YELLOW}⚠ Detected local changes${NC}"
+            has_changes=true
+        fi
     fi
     
     # Create backup before update
@@ -189,7 +197,12 @@ update_from_remote() {
         fi
         
         echo -e "${YELLOW}2. Fetch latest changes from origin/main${NC}"
-        echo -e "${YELLOW}3. Merge or fast-forward to latest version${NC}"
+        
+        if [ "$has_commits" = true ]; then
+            echo -e "${YELLOW}3. Merge or fast-forward to latest version${NC}"
+        else
+            echo -e "${YELLOW}3. Initialize repository with latest version${NC}"
+        fi
         
         if [ "$has_changes" = true ]; then
             echo -e "${YELLOW}4. Apply stashed changes${NC}"
@@ -222,22 +235,35 @@ update_from_remote() {
     echo -e "${GREEN}✓ Updates fetched${NC}"
     echo ""
     
-    # Merge or fast-forward
-    echo -e "${BLUE}Updating to latest version...${NC}"
-    if git merge --ff-only origin/main; then
-        echo -e "${GREEN}✓ Successfully updated to latest version${NC}"
-    else
-        echo -e "${YELLOW}⚠ Could not fast-forward (might have conflicting changes)${NC}"
-        echo -e "${YELLOW}Attempting manual merge...${NC}"
-        
-        if git merge origin/main; then
-            echo -e "${GREEN}✓ Merge completed (may require manual conflict resolution)${NC}"
+    # If this is the first time, just checkout the remote main branch
+    if [ "$has_commits" = false ]; then
+        echo -e "${BLUE}Initializing repository with main branch...${NC}"
+        if git checkout -b main origin/main 2>/dev/null || git checkout main 2>/dev/null; then
+            echo -e "${GREEN}✓ Successfully initialized main branch${NC}"
         else
-            echo -e "${RED}Error: Merge failed with conflicts${NC}" >&2
+            echo -e "${RED}Error: Failed to checkout main branch${NC}" >&2
             echo -e "${YELLOW}Restoring from backup...${NC}"
             restore_backup "$repo_root/.backups" "$repo_root"
-            git merge --abort
             return 1
+        fi
+    else
+        # Merge or fast-forward if repository already has commits
+        echo -e "${BLUE}Updating to latest version...${NC}"
+        if git merge --ff-only origin/main; then
+            echo -e "${GREEN}✓ Successfully updated to latest version${NC}"
+        else
+            echo -e "${YELLOW}⚠ Could not fast-forward (might have conflicting changes)${NC}"
+            echo -e "${YELLOW}Attempting manual merge...${NC}"
+            
+            if git merge origin/main; then
+                echo -e "${GREEN}✓ Merge completed (may require manual conflict resolution)${NC}"
+            else
+                echo -e "${RED}Error: Merge failed with conflicts${NC}" >&2
+                echo -e "${YELLOW}Restoring from backup...${NC}"
+                restore_backup "$repo_root/.backups" "$repo_root"
+                git merge --abort 2>/dev/null || true
+                return 1
+            fi
         fi
     fi
     echo ""
@@ -256,7 +282,7 @@ update_from_remote() {
     
     # Verify update
     local new_commit
-    new_commit=$(git rev-parse --short HEAD)
+    new_commit=$(git rev-parse --short HEAD 2>/dev/null || echo "unknown")
     echo -e "${GREEN}═══════════════════════════════════════════════════════════${NC}"
     echo -e "${GREEN}✓ Update completed successfully!${NC}"
     echo -e "${GREEN}New version: $new_commit${NC}"
