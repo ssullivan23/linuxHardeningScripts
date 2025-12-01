@@ -198,23 +198,27 @@ should_run_module() {
             fi
         done
     fi
-    # Explicitly skip removed/obsolete modules
-    module_name=$(basename "$module" .sh)
-    if [ "$module_name" = "kernel-hardening" ]; then
-        return 1
-    fi
-
+    
     # Check if module is enabled in config
     module_name=$(basename "$module" .sh)
     case $module_name in
         account-security)
             [ "${ENABLE_ACCOUNT_SECURITY:-yes}" = "yes" ] && return 0 || return 1
             ;;
+        audit-hardening)
+            [ "${ENABLE_AUDIT_HARDENING:-yes}" = "yes" ] && return 0 || return 1
+            ;;
         filesystem-hardening)
             [ "${ENABLE_FILESYSTEM_HARDENING:-yes}" = "yes" ] && return 0 || return 1
             ;;
         firewall-setup)
             [ "${ENABLE_FIREWALL:-yes}" = "yes" ] && return 0 || return 1
+            ;;
+        kernel-hardening)
+            [ "${ENABLE_KERNEL_HARDENING:-yes}" = "yes" ] && return 0 || return 1
+            ;;
+        permissions-hardening)
+            [ "${ENABLE_PERMISSIONS_HARDENING:-yes}" = "yes" ] && return 0 || return 1
             ;;
         service-hardening)
             [ "${ENABLE_SERVICE_HARDENING:-yes}" = "yes" ] && return 0 || return 1
@@ -268,12 +272,6 @@ for script in "$HARDENING_DIR"/*.sh; do
     [ -e "$script" ] || continue
     
     script_name=$(basename "$script")
-    
-    # Explicitly skip removed modules (do NOT execute kernel-hardening)
-    if [ "$script_name" = "kernel-hardening.sh" ]; then
-        log_message "Skipping: $script_name (module removed)"
-        continue
-    fi
     
     TOTAL_SCRIPTS=$((TOTAL_SCRIPTS + 1))
     

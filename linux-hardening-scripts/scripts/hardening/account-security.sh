@@ -1,30 +1,59 @@
 #!/bin/bash
 
-# account-security.sh - Hardening for user accounts, passwords, and access control
-# Based on CIS Ubuntu Linux 22.04 LTS Benchmark v3.0.0
-# Controls: 5.1 (Password aging), 5.2 (Login retries), 5.3 (PAM), 5.4 (Sudo), 5.5 (SSH auth), 6.x (file permissions)
+################################################################################
+# Account Security Hardening Script
+# Purpose: Secure user accounts, password policies, and access controls
+# CIS Controls: 5.1-5.5, 6.1-6.2 (User account management and password policy)
+# Features: Dry-run mode, console logging, summary reporting
+################################################################################
 
 set -euo pipefail
 
-# Determine script directory and repository root
+# Determine script directory
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 
-# Load utility functions
-source "$REPO_ROOT/scripts/utils/logger.sh"
-source "$REPO_ROOT/scripts/utils/validation.sh"
+# Source utilities
+source "${SCRIPT_DIR}/../utils/logger.sh" 2>/dev/null || {
+    echo "ERROR: Cannot load logger.sh" >&2
+    exit 1
+}
 
-# Parse command-line arguments
+# Configuration
 DRY_RUN=false
+CHANGES_MADE=0
+CHANGES_PLANNED=0
+LOGIN_DEFS="/etc/login.defs"
+LOGIN_DEFS_BACKUP="${LOGIN_DEFS}.backup.$(date +%Y%m%d_%H%M%S)"
+
+# Parse arguments
 while [[ "$#" -gt 0 ]]; do
     case $1 in
         --dry-run) DRY_RUN=true ;;
-        *) echo "Unknown option: $1"; exit 1 ;;
+        -h|--help) usage; exit 0 ;;
+        *) echo "Unknown parameter: $1"; exit 1 ;;
     esac
     shift
 done
 
-log_info "Starting account security hardening..."
+# Initialize
+if [ "$DRY_RUN" = true ]; then
+    log_info "=== ACCOUNT SECURITY HARDENING (DRY RUN MODE) ==="
+else
+    log_info "=== ACCOUNT SECURITY HARDENING ==="
+fi
+
+# Check if running as root
+if [ "$EUID" -ne 0 ] && [ "$DRY_RUN" = false ]; then
+    log_error "This script must be run as root (use sudo)"
+    exit 1
+fi
+
+# Backup login.defs
+if [ "$DRY_RUN" = false ] && [ -f "$LOGIN_DEFS" ]; then
+    cp "$LOGIN_DEFS" "$LOGIN_DEFS_BACKUP"
+    log_info "Backed up login.defs to ${LOGIN_DEFS_BACKUP}"
+fi
 
 # CIS 5.1.1: Ensure password expiration is 365 days or less
 if [ "$DRY_RUN" = true ]; then
