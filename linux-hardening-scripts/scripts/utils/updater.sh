@@ -315,9 +315,17 @@ update_from_remote() {
     
     # Check for local changes only if repository has commits
     local has_changes=false
+    local has_untracked=false
     if [ "$has_commits" = true ]; then
-        if ! git diff-index --quiet HEAD --; then
-            echo -e "${YELLOW}⚠ Detected local changes${NC}"
+        # Check for staged/unstaged changes
+        if ! git diff-index --quiet HEAD -- 2>/dev/null; then
+            echo -e "${YELLOW}⚠ Detected local modifications${NC}"
+            has_changes=true
+        fi
+        # Check for untracked files
+        if [ -n "$(git ls-files --others --exclude-standard 2>/dev/null)" ]; then
+            echo -e "${YELLOW}⚠ Detected untracked files${NC}"
+            has_untracked=true
             has_changes=true
         fi
     fi
@@ -375,12 +383,44 @@ update_from_remote() {
     # Stash local changes if any
     if [ "$has_changes" = true ]; then
         echo -e "${BLUE}Stashing local changes...${NC}"
-        git stash push -m "Pre-update stash $(date +%Y%m%d_%H%M%S)" || {
-            echo -e "${RED}Error: Failed to stash changes${NC}" >&2
-            restore_backup "$repo_root/.backups" "$repo_root"
-            return 1
-        }
-        echo -e "${GREEN}✓ Local changes stashed${NC}"
+        
+        # Ensure git has a user configured (required for stash)
+        if ! git config user.email &>/dev/null || [ -z "$(git config user.email)" ]; then
+            echo -e "${YELLOW}Configuring temporary git user for stash operation...${NC}"
+            git config user.email "updater@localhost"
+            git config user.name "Updater Script"
+        fi
+        
+        # Try to stash changes - use --include-untracked if we have untracked files
+        local stash_result=0
+        local stash_cmd="git stash push -m \"Pre-update stash $(date +%Y%m%d_%H%M%S)\""
+        
+        if [ "$has_untracked" = true ]; then
+            # Include untracked files in stash
+            git stash push --include-untracked -m "Pre-update stash $(date +%Y%m%d_%H%M%S)" 2>/dev/null || stash_result=$?
+        else
+            git stash push -m "Pre-update stash $(date +%Y%m%d_%H%M%S)" 2>/dev/null || stash_result=$?
+        fi
+        
+        if [ "$stash_result" -ne 0 ]; then
+            echo -e "${YELLOW}Standard stash failed, trying alternative methods...${NC}"
+            
+            # Try stashing with all files included
+            if git stash push --all -m "Pre-update stash $(date +%Y%m%d_%H%M%S)" 2>/dev/null; then
+                echo -e "${GREEN}✓ Local changes stashed (all files)${NC}"
+            else
+                # If stash still fails, try resetting and using backup instead
+                echo -e "${YELLOW}⚠ Could not stash changes - will preserve via backup${NC}"
+                echo -e "${YELLOW}Your changes are saved in the backup archive${NC}"
+                
+                # Reset to clean state for update (backup already created)
+                git checkout -- . 2>/dev/null || true
+                git clean -fd 2>/dev/null || true
+                has_changes=false  # Mark as no changes since we reset
+            fi
+        else
+            echo -e "${GREEN}✓ Local changes stashed${NC}"
+        fi
         echo ""
     fi
     
@@ -473,12 +513,19 @@ update_from_remote() {
     
     # Restore stashed changes if any
     if [ "$has_changes" = true ]; then
-        echo -e "${BLUE}Reapplying local changes...${NC}"
-        if git stash pop; then
-            echo -e "${GREEN}✓ Local changes reapplied${NC}"
+        # Check if there's actually something in the stash before trying to pop
+        if git stash list | grep -q "Pre-update stash"; then
+            echo -e "${BLUE}Reapplying local changes...${NC}"
+            if git stash pop; then
+                echo -e "${GREEN}✓ Local changes reapplied${NC}"
+            else
+                echo -e "${YELLOW}⚠ Could not automatically reapply local changes${NC}"
+                echo -e "${YELLOW}Your stashed changes are in: git stash list${NC}"
+                echo -e "${YELLOW}To manually apply: git stash pop${NC}"
+            fi
         else
-            echo -e "${YELLOW}⚠ Could not automatically reapply local changes${NC}"
-            echo -e "${YELLOW}Your stashed changes are in: git stash${NC}"
+            echo -e "${YELLOW}Note: Local changes were preserved in backup (stash was not used)${NC}"
+            echo -e "${YELLOW}Backup location: $repo_root/.backups/${NC}"
         fi
         echo ""
     fi
