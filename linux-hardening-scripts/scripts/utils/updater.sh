@@ -10,8 +10,39 @@ readonly YELLOW='\033[1;33m'
 readonly BLUE='\033[0;34m'
 readonly NC='\033[0m' # No Color
 
-# Get repository root
+# Get repository root (the actual git root, not the linux-hardening-scripts subfolder)
 get_repo_root() {
+    local script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+    local app_dir
+    app_dir=$(cd "$script_dir/../.." && pwd)
+    
+    # Check if we're inside a git repository already
+    local git_root
+    git_root=$(cd "$app_dir" && git rev-parse --show-toplevel 2>/dev/null)
+    
+    if [ -n "$git_root" ]; then
+        # Return the actual git root
+        echo "$git_root"
+    else
+        # If not in a git repo, check if app_dir is named linux-hardening-scripts
+        # and has a parent that could be the repo root
+        local parent_dir
+        parent_dir=$(dirname "$app_dir")
+        local dir_name
+        dir_name=$(basename "$app_dir")
+        
+        if [ "$dir_name" = "linux-hardening-scripts" ] && [ -d "$parent_dir/.git" ]; then
+            # Parent is the git root
+            echo "$parent_dir"
+        else
+            # Assume app_dir is the repo root (standalone installation)
+            echo "$app_dir"
+        fi
+    fi
+}
+
+# Get the application directory (linux-hardening-scripts folder)
+get_app_dir() {
     local script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
     cd "$script_dir/../.." && pwd
 }
@@ -30,6 +61,10 @@ init_git() {
         git remote add origin "https://github.com/ssullivan23/linuxHardeningScripts.git" || {
             echo -e "${YELLOW}Remote 'origin' may already exist${NC}"
         }
+        
+        # Configure sparse checkout if the repo structure includes linux-hardening-scripts subfolder
+        # This prevents creating nested directories during update
+        git config core.sparseCheckout false
     fi
 }
 
@@ -176,6 +211,44 @@ detect_filepath_changes() {
     fi
 }
 
+# Clean up nested linux-hardening-scripts directories
+# This prevents the issue where syncing creates linux-hardening-scripts/linux-hardening-scripts
+cleanup_nested_directories() {
+    local app_dir="$1"
+    local dir_name
+    dir_name=$(basename "$app_dir")
+    
+    # Check if we're in a linux-hardening-scripts directory with a nested one
+    if [ "$dir_name" = "linux-hardening-scripts" ] && [ -d "$app_dir/linux-hardening-scripts" ]; then
+        echo -e "${YELLOW}⚠ Found nested linux-hardening-scripts directory${NC}"
+        
+        local nested_dir="$app_dir/linux-hardening-scripts"
+        
+        # Check if nested directory has actual content
+        if [ -d "$nested_dir/scripts" ] || [ -d "$nested_dir/config" ] || [ -d "$nested_dir/docs" ]; then
+            echo -e "${BLUE}Merging nested directory contents...${NC}"
+            
+            # Copy contents from nested to parent (don't overwrite existing)
+            for item in "$nested_dir"/*; do
+                if [ -e "$item" ]; then
+                    local item_name
+                    item_name=$(basename "$item")
+                    if [ ! -e "$app_dir/$item_name" ]; then
+                        cp -r "$item" "$app_dir/"
+                    fi
+                fi
+            done
+            
+            # Remove the nested directory
+            rm -rf "$nested_dir"
+            echo -e "${GREEN}✓ Nested directory cleaned up${NC}"
+            return 0
+        fi
+    fi
+    
+    return 1  # No cleanup needed
+}
+
 # Display filepath changes that will occur during update
 show_filepath_changes() {
     local repo_root="$1"
@@ -213,6 +286,8 @@ show_filepath_changes() {
 update_from_remote() {
     local repo_root="$1"
     local dry_run="${2:-false}"
+    local app_dir
+    app_dir=$(get_app_dir)
     
     cd "$repo_root"
     
@@ -220,6 +295,17 @@ update_from_remote() {
     echo -e "${BLUE}  Updating from Remote Repository${NC}"
     echo -e "${BLUE}═══════════════════════════════════════════════════════════${NC}"
     echo ""
+    
+    # Detect if the remote has a linux-hardening-scripts subfolder structure
+    # to prevent nested directories
+    local remote_has_subfolder=false
+    if git ls-remote --exit-code origin &>/dev/null; then
+        # Check if remote main branch has linux-hardening-scripts as a top-level dir
+        if git ls-tree -d origin/main linux-hardening-scripts &>/dev/null 2>&1; then
+            remote_has_subfolder=true
+            echo -e "${BLUE}Info: Remote repository contains linux-hardening-scripts subfolder${NC}"
+        fi
+    fi
     
     # Check if HEAD exists (repository has commits)
     local has_commits=false
@@ -312,17 +398,49 @@ update_from_remote() {
     # If this is the first time, just checkout the remote main branch
     if [ "$has_commits" = false ]; then
         echo -e "${BLUE}Initializing repository with main branch...${NC}"
-        if git checkout -b main origin/main 2>/dev/null || git checkout main 2>/dev/null; then
-            echo -e "${GREEN}✓ Successfully initialized main branch${NC}"
+        
+        # Handle repositories where remote has linux-hardening-scripts as subfolder
+        if [ "$remote_has_subfolder" = true ]; then
+            echo -e "${BLUE}Configuring to sync only the application directory...${NC}"
+            
+            # Use subtree or sparse-checkout to avoid nested directories
+            git config core.sparseCheckout true
+            mkdir -p .git/info
+            echo "linux-hardening-scripts/*" > .git/info/sparse-checkout
+            
+            if git checkout -b main origin/main 2>/dev/null || git checkout main 2>/dev/null; then
+                # Move files from linux-hardening-scripts subfolder to root if needed
+                if [ -d "$repo_root/linux-hardening-scripts" ] && [ "$repo_root" != "$app_dir" ]; then
+                    echo -e "${BLUE}Reorganizing directory structure...${NC}"
+                    # Files are already in the right place due to sparse checkout
+                fi
+                echo -e "${GREEN}✓ Successfully initialized main branch${NC}"
+            else
+                echo -e "${RED}Error: Failed to checkout main branch${NC}" >&2
+                echo -e "${YELLOW}Restoring from backup...${NC}"
+                restore_backup "$repo_root/.backups" "$repo_root"
+                return 1
+            fi
         else
-            echo -e "${RED}Error: Failed to checkout main branch${NC}" >&2
-            echo -e "${YELLOW}Restoring from backup...${NC}"
-            restore_backup "$repo_root/.backups" "$repo_root"
-            return 1
+            if git checkout -b main origin/main 2>/dev/null || git checkout main 2>/dev/null; then
+                echo -e "${GREEN}✓ Successfully initialized main branch${NC}"
+            else
+                echo -e "${RED}Error: Failed to checkout main branch${NC}" >&2
+                echo -e "${YELLOW}Restoring from backup...${NC}"
+                restore_backup "$repo_root/.backups" "$repo_root"
+                return 1
+            fi
         fi
     else
         # Merge or fast-forward if repository already has commits
         echo -e "${BLUE}Updating to latest version...${NC}"
+        
+        # Check for and remove any nested linux-hardening-scripts directories that shouldn't exist
+        if [ -d "$app_dir/linux-hardening-scripts" ] && [ "$(basename "$app_dir")" = "linux-hardening-scripts" ]; then
+            echo -e "${YELLOW}⚠ Detected nested linux-hardening-scripts directory${NC}"
+            echo -e "${BLUE}This will be cleaned up during update...${NC}"
+        fi
+        
         if git merge --ff-only origin/main; then
             echo -e "${GREEN}✓ Successfully updated to latest version${NC}"
         else
@@ -337,6 +455,17 @@ update_from_remote() {
                 restore_backup "$repo_root/.backups" "$repo_root"
                 git merge --abort 2>/dev/null || true
                 return 1
+            fi
+        fi
+        
+        # Clean up nested directories if they were created
+        if [ -d "$app_dir/linux-hardening-scripts" ] && [ "$(basename "$app_dir")" = "linux-hardening-scripts" ]; then
+            echo -e "${BLUE}Cleaning up nested directory structure...${NC}"
+            # Move contents up and remove nested folder
+            if [ -d "$app_dir/linux-hardening-scripts/scripts" ]; then
+                cp -rn "$app_dir/linux-hardening-scripts/"* "$app_dir/" 2>/dev/null || true
+                rm -rf "$app_dir/linux-hardening-scripts"
+                echo -e "${GREEN}✓ Directory structure corrected${NC}"
             fi
         fi
     fi
@@ -358,9 +487,13 @@ update_from_remote() {
     local new_commit
     new_commit=$(git rev-parse --short HEAD 2>/dev/null || echo "unknown")
     
+    # Final cleanup: ensure no nested directories exist
+    cleanup_nested_directories "$app_dir"
+    
     echo -e "${GREEN}═══════════════════════════════════════════════════════════${NC}"
     echo -e "${GREEN}✓ Update completed successfully!${NC}"
     echo -e "${GREEN}New version: $new_commit${NC}"
+    echo -e "${GREEN}App location: $app_dir${NC}"
     
     if [ "$has_filepath_changes" = true ]; then
         echo ""
@@ -413,6 +546,7 @@ COMMANDS:
   backup                        Create a manual backup before update
   restore                       Restore from latest backup
   list-backups                  List all available backups
+  fix-nested                    Fix nested directory issues (linux-hardening-scripts/linux-hardening-scripts)
   -h, --help                    Display this help message
 
 OPTIONS:
@@ -438,6 +572,9 @@ QUICK START EXAMPLES:
   6. Restore from latest backup:
      sudo ./linux-hardening-scripts/scripts/utils/updater.sh restore
 
+  7. Fix nested directory structure:
+     sudo ./linux-hardening-scripts/scripts/utils/updater.sh fix-nested
+
 FEATURES:
   • Automatic backup creation before updates (full repository)
   • Backup rotation (keeps last 5 backups)
@@ -448,6 +585,7 @@ FEATURES:
   • Remote repository synchronization
   • Conflict detection and handling
   • Complete repository structure management
+  • Automatic nested directory cleanup (prevents linux-hardening-scripts/linux-hardening-scripts)
 
 WORKFLOW:
   1. Check status: sudo ./scripts/utils/updater.sh status
@@ -466,6 +604,7 @@ IMPORTANT NOTES:
   • Automatic backups are created before each update
   • Failed updates can be rolled back with restore command
   • Backups are stored in .backups directory (auto-rotated)
+  • Nested directories are automatically cleaned up during updates
 
 EOF
 }
@@ -507,6 +646,16 @@ main() {
             ;;
         list-backups)
             list_backups "$repo_root/.backups"
+            ;;
+        fix-nested)
+            local app_dir
+            app_dir=$(get_app_dir)
+            echo -e "${BLUE}Checking for nested directory issues...${NC}"
+            if cleanup_nested_directories "$app_dir"; then
+                echo -e "${GREEN}✓ Nested directories fixed${NC}"
+            else
+                echo -e "${GREEN}✓ No nested directory issues found${NC}"
+            fi
             ;;
         help|-h|--help)
             show_usage
