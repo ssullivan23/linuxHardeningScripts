@@ -190,10 +190,16 @@ fi
 
 # Validate SSH config
 if [ "$DRY_RUN" = false ]; then
-    if sshd -t 2>/dev/null; then
-        log_info "SSH configuration syntax is valid"
+    log_info "Validating SSH configuration..."
+    validation_output=$(sshd -t 2>&1)
+    validation_result=$?
+    
+    if [ $validation_result -eq 0 ]; then
+        log_success "SSH configuration syntax is valid"
     else
-        log_error "SSH configuration syntax error detected! Restoring backup..."
+        log_error "SSH configuration syntax error detected!"
+        log_error "Error details: $validation_output"
+        log_warning "Restoring backup..."
         cp "$SSH_CONFIG_BACKUP" "$SSH_CONFIG"
         exit 1
     fi
