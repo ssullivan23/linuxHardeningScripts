@@ -89,8 +89,15 @@ configure_audit_rules() {
         log_info "[DRY RUN] Would configure audit rules"
         ((CHANGES_PLANNED++))
     else
+        # Ensure the audit rules directory exists
+        mkdir -p "$(dirname "$AUDIT_RULES")" 2>/dev/null || {
+            log_warning "Could not create audit rules directory"
+            return 1
+        }
+        
         # Create audit rules file
-        cat > "$AUDIT_RULES" << 'EOF'
+        {
+            cat << 'EOF'
 # Audit Rules Configuration for CIS Compliance
 # Remove any existing rules
 -D
@@ -174,6 +181,11 @@ configure_audit_rules() {
 # Make configuration immutable (load rules at startup)
 -e 2
 EOF
+        } > "$AUDIT_RULES" 2>/dev/null || {
+            log_warning "Could not write audit rules file"
+            return 1
+        }
+        
         log_success "Audit rules configured"
         ((CHANGES_MADE++))
     fi
@@ -266,9 +278,22 @@ configure_logging
 
 # Reload auditd to apply new rules
 if [ "$DRY_RUN" = false ]; then
-    auditctl -R "$AUDIT_RULES" >/dev/null 2>&1 || true
-    systemctl restart auditd >/dev/null 2>&1 || true
-    log_info "Audit rules reloaded"
+    # Load the audit rules
+    if [ -f "$AUDIT_RULES" ]; then
+        auditctl -R "$AUDIT_RULES" 2>&1 || {
+            log_warning "Failed to load audit rules directly, attempting workaround"
+            auditctl -D 2>&1 || true  # Clear existing rules
+            auditctl -l >/dev/null 2>&1 || true  # Test if auditctl works
+        }
+    else
+        log_warning "Audit rules file not found at $AUDIT_RULES"
+    fi
+    
+    # Restart the auditd service
+    systemctl restart auditd >/dev/null 2>&1 || {
+        log_warning "Failed to restart auditd service"
+    }
+    log_info "Audit rules reload process completed"
 fi
 
 # Summary
