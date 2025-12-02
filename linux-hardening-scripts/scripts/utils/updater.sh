@@ -249,6 +249,58 @@ cleanup_nested_directories() {
     return 1  # No cleanup needed
 }
 
+# Set executable permissions on all scripts after update
+set_script_permissions() {
+    local app_dir="$1"
+    
+    echo -e "${BLUE}Setting executable permissions on scripts...${NC}"
+    
+    local scripts_set=0
+    
+    # Main script
+    if [ -f "$app_dir/scripts/main.sh" ]; then
+        chmod +x "$app_dir/scripts/main.sh" && ((scripts_set++))
+    fi
+    
+    # Hardening scripts
+    if [ -d "$app_dir/scripts/hardening" ]; then
+        for script in "$app_dir/scripts/hardening"/*.sh; do
+            if [ -f "$script" ]; then
+                chmod +x "$script" && ((scripts_set++))
+            fi
+        done
+    fi
+    
+    # Utility scripts
+    if [ -d "$app_dir/scripts/utils" ]; then
+        for script in "$app_dir/scripts/utils"/*.sh; do
+            if [ -f "$script" ]; then
+                chmod +x "$script" && ((scripts_set++))
+            fi
+        done
+    fi
+    
+    # Sysadmin utility scripts
+    if [ -d "$app_dir/scripts/sysadmin-utils" ]; then
+        for script in "$app_dir/scripts/sysadmin-utils"/*.sh; do
+            if [ -f "$script" ]; then
+                chmod +x "$script" && ((scripts_set++))
+            fi
+        done
+    fi
+    
+    # Test scripts
+    if [ -d "$app_dir/tests" ]; then
+        for script in "$app_dir/tests"/*.sh; do
+            if [ -f "$script" ]; then
+                chmod +x "$script" && ((scripts_set++))
+            fi
+        done
+    fi
+    
+    echo -e "${GREEN}✓ Set executable permissions on $scripts_set scripts${NC}"
+}
+
 # Display filepath changes that will occur during update
 show_filepath_changes() {
     local repo_root="$1"
@@ -537,6 +589,10 @@ update_from_remote() {
     # Final cleanup: ensure no nested directories exist
     cleanup_nested_directories "$app_dir"
     
+    # Set executable permissions on all scripts
+    set_script_permissions "$app_dir"
+    
+    echo ""
     echo -e "${GREEN}═══════════════════════════════════════════════════════════${NC}"
     echo -e "${GREEN}✓ Update completed successfully!${NC}"
     echo -e "${GREEN}New version: $new_commit${NC}"
@@ -594,6 +650,7 @@ COMMANDS:
   restore                       Restore from latest backup
   list-backups                  List all available backups
   fix-nested                    Fix nested directory issues (linux-hardening-scripts/linux-hardening-scripts)
+  fix-permissions               Set executable permissions on all scripts
   -h, --help                    Display this help message
 
 OPTIONS:
@@ -622,6 +679,9 @@ QUICK START EXAMPLES:
   7. Fix nested directory structure:
      sudo ./linux-hardening-scripts/scripts/utils/updater.sh fix-nested
 
+  8. Fix script permissions after manual changes:
+     sudo ./linux-hardening-scripts/scripts/utils/updater.sh fix-permissions
+
 FEATURES:
   • Automatic backup creation before updates (full repository)
   • Backup rotation (keeps last 5 backups)
@@ -633,6 +693,7 @@ FEATURES:
   • Conflict detection and handling
   • Complete repository structure management
   • Automatic nested directory cleanup (prevents linux-hardening-scripts/linux-hardening-scripts)
+  • Automatic executable permissions set on all scripts after update
 
 WORKFLOW:
   1. Check status: sudo ./scripts/utils/updater.sh status
@@ -703,6 +764,11 @@ main() {
             else
                 echo -e "${GREEN}✓ No nested directory issues found${NC}"
             fi
+            ;;
+        fix-permissions)
+            local app_dir
+            app_dir=$(get_app_dir)
+            set_script_permissions "$app_dir"
             ;;
         help|-h|--help)
             show_usage
