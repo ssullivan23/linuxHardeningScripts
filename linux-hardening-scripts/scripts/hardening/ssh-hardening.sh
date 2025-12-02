@@ -163,8 +163,8 @@ if [ "$DRY_RUN" = true ]; then
     ((CHANGES_PLANNED++))
 else
     if ! grep -q "^KexAlgorithms" "$SSH_CONFIG"; then
-        # Use algorithms compatible with OpenSSH 7.2+ (Ubuntu 16.04)
-        echo "KexAlgorithms curve25519-sha256@libssh.org,diffie-hellman-group-exchange-sha256,diffie-hellman-group14-sha256" >> "$SSH_CONFIG"
+        # Use algorithms compatible with OpenSSH 6.6+ (Ubuntu 14.04+)
+        echo "KexAlgorithms curve25519-sha256@libssh.org,diffie-hellman-group-exchange-sha256" >> "$SSH_CONFIG"
         log_info "Configured strong key exchange algorithms"
         ((CHANGES_MADE++))
     fi
