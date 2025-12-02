@@ -74,6 +74,14 @@ if [ "$EUID" -ne 0 ] && [ "$DRY_RUN" = false ]; then
     exit 1
 fi
 
+# Check if SSH server is installed
+if [ ! -f "$SSH_CONFIG" ]; then
+    log_warning "SSH server does not appear to be installed (no $SSH_CONFIG found)"
+    log_warning "Install with: sudo apt-get install openssh-server"
+    log_info "Skipping SSH hardening"
+    exit 0
+fi
+
 # Backup SSH config
 if [ "$DRY_RUN" = false ]; then
     if [ -f "$SSH_CONFIG" ]; then
@@ -191,17 +199,32 @@ fi
 # Validate SSH config
 if [ "$DRY_RUN" = false ]; then
     log_info "Validating SSH configuration..."
-    validation_output=$(sshd -t 2>&1)
-    validation_result=$?
     
-    if [ $validation_result -eq 0 ]; then
-        log_success "SSH configuration syntax is valid"
+    # Find sshd binary location
+    SSHD_BIN=""
+    for path in /usr/sbin/sshd /sbin/sshd /usr/local/sbin/sshd; do
+        if [ -x "$path" ]; then
+            SSHD_BIN="$path"
+            break
+        fi
+    done
+    
+    if [ -z "$SSHD_BIN" ]; then
+        log_warning "Could not find sshd binary to validate config"
+        log_warning "Please manually verify SSH config with: /usr/sbin/sshd -t"
     else
-        log_error "SSH configuration syntax error detected!"
-        log_error "Error details: $validation_output"
-        log_warning "Restoring backup..."
-        cp "$SSH_CONFIG_BACKUP" "$SSH_CONFIG"
-        exit 1
+        validation_output=$("$SSHD_BIN" -t 2>&1)
+        validation_result=$?
+        
+        if [ $validation_result -eq 0 ]; then
+            log_success "SSH configuration syntax is valid"
+        else
+            log_error "SSH configuration syntax error detected!"
+            log_error "Error details: $validation_output"
+            log_warning "Restoring backup..."
+            cp "$SSH_CONFIG_BACKUP" "$SSH_CONFIG"
+            exit 1
+        fi
     fi
 fi
 
