@@ -32,6 +32,19 @@ if [ -f "$MODULES_CONFIG" ]; then
     source "$MODULES_CONFIG"
 fi
 
+# Set default values for any missing module variables (all enabled by default)
+ENABLE_ACCOUNT_SECURITY="${ENABLE_ACCOUNT_SECURITY:-yes}"
+ENABLE_AUDIT_HARDENING="${ENABLE_AUDIT_HARDENING:-yes}"
+ENABLE_BOOTLOADER_HARDENING="${ENABLE_BOOTLOADER_HARDENING:-yes}"
+ENABLE_FILESYSTEM_HARDENING="${ENABLE_FILESYSTEM_HARDENING:-yes}"
+ENABLE_FIREWALL="${ENABLE_FIREWALL:-yes}"
+ENABLE_KERNEL_HARDENING="${ENABLE_KERNEL_HARDENING:-yes}"
+ENABLE_NETWORK_HARDENING="${ENABLE_NETWORK_HARDENING:-yes}"
+ENABLE_PERMISSIONS_HARDENING="${ENABLE_PERMISSIONS_HARDENING:-yes}"
+ENABLE_SERVICE_HARDENING="${ENABLE_SERVICE_HARDENING:-yes}"
+ENABLE_SSH_HARDENING="${ENABLE_SSH_HARDENING:-yes}"
+ENABLE_AUTH_HARDENING="${ENABLE_AUTH_HARDENING:-yes}"
+
 # Default values
 DRY_RUN=false
 LOG_FILE="$REPO_ROOT/logs/hardening_summary.log"
@@ -63,11 +76,14 @@ OPTIONS:
                                 (no spaces between module names)
 
 AVAILABLE MODULES:
-  account-security              Password policies, sudo, SSH config security (CIS 5.1-5.4)
+  account-security              Password policies, sudo, SSH config security (CIS 5.1-5.5, 6.1-6.2)
+  audit-hardening               Audit & logging configuration (CIS 4.1-4.4, 5.2-5.3)
   bootloader-hardening          GRUB security and permissions (CIS 1.5)
   filesystem-hardening          Filesystem mounts and permissions (CIS 1.1-1.10)
-  firewall-setup                Firewall and iptables configuration (CIS 3.4)
-  network-hardening             Network stack hardening (CIS 3.1-3.3)
+  firewall-setup                Firewall configuration (CIS 3.4-3.5)
+  kernel-hardening              Kernel parameters & sysctl hardening (CIS 1.1, 1.3, 3.1-3.5)
+  network-hardening             Network stack hardening (CIS 3.1-3.4)
+  permissions-hardening         File/directory permissions security (CIS 6.1-6.2)
   service-hardening             Service management and removal (CIS 2.x)
   ssh-hardening                 SSH daemon configuration (CIS 5.2)
   user-security                 User/group permissions (CIS 5.1-5.5, 6.x)
