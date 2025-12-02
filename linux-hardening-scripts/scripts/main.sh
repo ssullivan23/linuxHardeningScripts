@@ -295,9 +295,9 @@ for script in "$HARDENING_DIR"/*.sh; do
         log_message "Executing: $script_name"
         EXECUTED_SCRIPTS=$((EXECUTED_SCRIPTS + 1))
         if [ "$DRY_RUN" = true ]; then
-            bash "$script" --dry-run
+            bash "$script" --dry-run 2>&1 || true
         else
-            bash "$script"
+            bash "$script" 2>&1 || true
         fi
     else
         log_message "Skipping: $script_name (module disabled)"
