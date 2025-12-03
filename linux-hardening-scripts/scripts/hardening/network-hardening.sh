@@ -4,15 +4,13 @@
 # Based on CIS Ubuntu Linux 22.04 LTS Benchmark v3.0.0
 # Controls: 3.1 (IP forwarding), 3.2 (ICMP), 3.3 (TCP/IP stack), 3.4 (TCP wrappers), 3.5 (firewall)
 
-set -euo pipefail
-
 # Determine script directory and repository root
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 
 # Load utility functions
 source "$REPO_ROOT/scripts/utils/logger.sh"
-source "$REPO_ROOT/scripts/utils/validation.sh"
+source "$REPO_ROOT/scripts/utils/validation.sh" 2>/dev/null || true
 
 # Configuration
 DRY_RUN=false
@@ -42,263 +40,208 @@ fi
 
 log_info "Starting network hardening..."
 
-# Helper function to set sysctl parameter persistently
-set_sysctl_param() {
-    local param="$1"
-    local value="$2"
-    local description="$3"
+# Define all sysctl parameters to apply
+declare -A SYSCTL_PARAMS
+
+# CIS 3.1 - Disable network forwarding
+SYSCTL_PARAMS["net.ipv4.ip_forward"]="0"
+SYSCTL_PARAMS["net.ipv6.conf.all.forwarding"]="0"
+
+# CIS 3.2 - Disable packet redirect sending
+SYSCTL_PARAMS["net.ipv4.conf.all.send_redirects"]="0"
+SYSCTL_PARAMS["net.ipv4.conf.default.send_redirects"]="0"
+SYSCTL_PARAMS["net.ipv4.conf.all.accept_redirects"]="0"
+SYSCTL_PARAMS["net.ipv4.conf.default.accept_redirects"]="0"
+SYSCTL_PARAMS["net.ipv4.conf.all.secure_redirects"]="0"
+SYSCTL_PARAMS["net.ipv4.conf.default.secure_redirects"]="0"
+SYSCTL_PARAMS["net.ipv6.conf.all.accept_redirects"]="0"
+SYSCTL_PARAMS["net.ipv6.conf.default.accept_redirects"]="0"
+
+# CIS 3.3 - Network parameters
+SYSCTL_PARAMS["net.ipv4.conf.all.accept_source_route"]="0"
+SYSCTL_PARAMS["net.ipv4.conf.default.accept_source_route"]="0"
+SYSCTL_PARAMS["net.ipv6.conf.all.accept_source_route"]="0"
+SYSCTL_PARAMS["net.ipv6.conf.default.accept_source_route"]="0"
+SYSCTL_PARAMS["net.ipv4.icmp_echo_ignore_broadcasts"]="1"
+SYSCTL_PARAMS["net.ipv4.icmp_ignore_bogus_error_responses"]="1"
+SYSCTL_PARAMS["net.ipv4.conf.all.rp_filter"]="1"
+SYSCTL_PARAMS["net.ipv4.conf.default.rp_filter"]="1"
+SYSCTL_PARAMS["net.ipv4.tcp_syncookies"]="1"
+SYSCTL_PARAMS["net.ipv6.conf.all.accept_ra"]="0"
+SYSCTL_PARAMS["net.ipv6.conf.default.accept_ra"]="0"
+SYSCTL_PARAMS["net.ipv4.conf.all.log_martians"]="1"
+SYSCTL_PARAMS["net.ipv4.conf.default.log_martians"]="1"
+
+# Additional TCP hardening
+SYSCTL_PARAMS["net.ipv4.tcp_max_syn_backlog"]="2048"
+SYSCTL_PARAMS["net.ipv4.tcp_synack_retries"]="2"
+SYSCTL_PARAMS["net.ipv4.tcp_syn_retries"]="5"
+SYSCTL_PARAMS["net.ipv4.tcp_timestamps"]="1"
+
+if [ "$DRY_RUN" = true ]; then
+    log_info "[DRY RUN MODE] - No changes will be made"
+    log_info ""
+    log_info "The following settings would be applied to $SYSCTL_CONF:"
+    log_info ""
     
-    local current_value
-    current_value=$(sysctl -n "$param" 2>/dev/null || echo "unknown")
-    
-    if [ "$DRY_RUN" = true ]; then
-        if [ "$current_value" = "$value" ]; then
-            log_info "[DRY RUN] $param already set to $value - $description"
+    for param in "${!SYSCTL_PARAMS[@]}"; do
+        value="${SYSCTL_PARAMS[$param]}"
+        current=$(sysctl -n "$param" 2>/dev/null || echo "N/A")
+        if [ "$current" = "$value" ]; then
+            log_info "  $param = $value (already set)"
         else
-            log_info "[DRY RUN] Would set $param = $value (current: $current_value) - $description"
+            log_info "  $param = $value (current: $current) [WOULD CHANGE]"
             ((CHANGES_PLANNED++))
         fi
-    else
-        if [ "$current_value" = "$value" ]; then
-            log_info "$param already set to $value"
-        else
-            # Apply immediately
-            sysctl -w "${param}=${value}" >/dev/null 2>&1 || {
-                log_warning "Could not set $param (may not be supported on this system)"
-                return 1
-            }
-            log_success "Set $param = $value - $description"
-            ((CHANGES_MADE++))
-        fi
-    fi
-    return 0
-}
+    done
+    
+    log_info ""
+    log_info "Dry run completed: ${CHANGES_PLANNED} changes would be made"
+    log_warning "Run without --dry-run to apply changes"
+    exit 0
+fi
 
-# Initialize sysctl configuration file
-initialize_sysctl_conf() {
-    if [ "$DRY_RUN" = true ]; then
-        log_info "[DRY RUN] Would create/update $SYSCTL_CONF"
-        return
-    fi
-    
-    # Create backup if file exists
-    if [ -f "$SYSCTL_CONF" ]; then
-        cp "$SYSCTL_CONF" "${SYSCTL_CONF}.backup.$(date +%Y%m%d_%H%M%S)"
-    fi
-    
-    # Create new config file with header
-    cat > "$SYSCTL_CONF" << 'EOF'
+# Create the sysctl configuration file
+log_info "Creating sysctl configuration file: $SYSCTL_CONF"
+
+# Backup existing file if present
+if [ -f "$SYSCTL_CONF" ]; then
+    cp "$SYSCTL_CONF" "${SYSCTL_CONF}.backup.$(date +%Y%m%d_%H%M%S)"
+    log_info "Backed up existing configuration"
+fi
+
+# Write the configuration file directly
+cat > "$SYSCTL_CONF" << 'HEADER'
 # CIS Ubuntu Linux 22.04 LTS Benchmark - Network Hardening
 # Generated by network-hardening.sh
 # Do not edit manually - changes will be overwritten
 
-EOF
-    log_info "Initialized $SYSCTL_CONF"
-}
+#####################################################################
+# CIS 3.1 - Network Forwarding
+#####################################################################
+net.ipv4.ip_forward = 0
+net.ipv6.conf.all.forwarding = 0
 
-# Add parameter to sysctl config file
-add_to_sysctl_conf() {
-    local param="$1"
-    local value="$2"
-    
-    if [ "$DRY_RUN" = false ]; then
-        echo "${param} = ${value}" >> "$SYSCTL_CONF"
-    fi
-}
+#####################################################################
+# CIS 3.2 - Packet Redirect Settings
+#####################################################################
+net.ipv4.conf.all.send_redirects = 0
+net.ipv4.conf.default.send_redirects = 0
+net.ipv4.conf.all.accept_redirects = 0
+net.ipv4.conf.default.accept_redirects = 0
+net.ipv4.conf.all.secure_redirects = 0
+net.ipv4.conf.default.secure_redirects = 0
+net.ipv6.conf.all.accept_redirects = 0
+net.ipv6.conf.default.accept_redirects = 0
 
-# Apply all sysctl settings from config file
-apply_sysctl_conf() {
-    if [ "$DRY_RUN" = true ]; then
-        log_info "[DRY RUN] Would apply sysctl settings from $SYSCTL_CONF"
-        return
-    fi
-    
-    log_info "Applying sysctl configuration..."
-    
-    # Apply settings from our config file
-    if sysctl -p "$SYSCTL_CONF" >/dev/null 2>&1; then
-        log_success "Applied sysctl settings from $SYSCTL_CONF"
+#####################################################################
+# CIS 3.3 - Network Parameters
+#####################################################################
+# Source routing
+net.ipv4.conf.all.accept_source_route = 0
+net.ipv4.conf.default.accept_source_route = 0
+net.ipv6.conf.all.accept_source_route = 0
+net.ipv6.conf.default.accept_source_route = 0
+
+# ICMP settings
+net.ipv4.icmp_echo_ignore_broadcasts = 1
+net.ipv4.icmp_ignore_bogus_error_responses = 1
+
+# Reverse path filtering
+net.ipv4.conf.all.rp_filter = 1
+net.ipv4.conf.default.rp_filter = 1
+
+# SYN flood protection
+net.ipv4.tcp_syncookies = 1
+
+# IPv6 router advertisements
+net.ipv6.conf.all.accept_ra = 0
+net.ipv6.conf.default.accept_ra = 0
+
+# Log suspicious packets (martians)
+net.ipv4.conf.all.log_martians = 1
+net.ipv4.conf.default.log_martians = 1
+
+#####################################################################
+# Additional TCP Hardening
+#####################################################################
+net.ipv4.tcp_max_syn_backlog = 2048
+net.ipv4.tcp_synack_retries = 2
+net.ipv4.tcp_syn_retries = 5
+net.ipv4.tcp_timestamps = 1
+HEADER
+
+# Verify the file was written
+if [ ! -f "$SYSCTL_CONF" ]; then
+    log_error "Failed to create $SYSCTL_CONF"
+    exit 1
+fi
+
+# Check file has content
+file_size=$(stat -c%s "$SYSCTL_CONF" 2>/dev/null || echo "0")
+if [ "$file_size" -lt 100 ]; then
+    log_error "Configuration file appears to be empty or too small"
+    exit 1
+fi
+
+log_success "Configuration file created successfully ($file_size bytes)"
+
+# Display file contents for verification
+log_info "Configuration file contents:"
+cat "$SYSCTL_CONF"
+
+# Apply the settings immediately
+log_info ""
+log_info "Applying sysctl settings..."
+
+# Apply each setting individually and count successes
+for param in "${!SYSCTL_PARAMS[@]}"; do
+    value="${SYSCTL_PARAMS[$param]}"
+    if sysctl -w "${param}=${value}" >/dev/null 2>&1; then
+        ((CHANGES_MADE++))
     else
-        log_warning "Some sysctl settings may not have been applied"
+        log_warning "Could not apply $param (may not be supported)"
     fi
-    
-    # Also reload all sysctl configs to ensure persistence
-    if command -v systemctl &>/dev/null; then
-        systemctl restart systemd-sysctl.service 2>/dev/null || true
-    fi
-}
+done
 
-################################################################################
-# Initialize configuration
-################################################################################
-
-initialize_sysctl_conf
-
-################################################################################
-# CIS 3.1 - Disable network forwarding
-################################################################################
-
-log_info "CIS 3.1: Configuring network forwarding..."
-
-# CIS 3.1.1: Ensure IP forwarding is disabled
-set_sysctl_param "net.ipv4.ip_forward" "0" "Disable IPv4 forwarding"
-add_to_sysctl_conf "net.ipv4.ip_forward" "0"
-
-# CIS 3.1.2: Ensure IPv6 forwarding is disabled (if IPv6 is enabled)
-if [ -f /proc/sys/net/ipv6/conf/all/forwarding ]; then
-    set_sysctl_param "net.ipv6.conf.all.forwarding" "0" "Disable IPv6 forwarding"
-    add_to_sysctl_conf "net.ipv6.conf.all.forwarding" "0"
+# Also apply from the config file to ensure everything is loaded
+log_info "Loading configuration from $SYSCTL_CONF..."
+if sysctl -p "$SYSCTL_CONF" 2>&1; then
+    log_success "Applied settings from configuration file"
+else
+    log_warning "Some settings may not have been applied (check for errors above)"
 fi
 
-################################################################################
-# CIS 3.2 - Disable packet redirect sending
-################################################################################
-
-log_info "CIS 3.2: Configuring packet redirect settings..."
-
-# CIS 3.2.1: Ensure packet redirect sending is disabled
-set_sysctl_param "net.ipv4.conf.all.send_redirects" "0" "Disable sending ICMP redirects (all)"
-add_to_sysctl_conf "net.ipv4.conf.all.send_redirects" "0"
-
-set_sysctl_param "net.ipv4.conf.default.send_redirects" "0" "Disable sending ICMP redirects (default)"
-add_to_sysctl_conf "net.ipv4.conf.default.send_redirects" "0"
-
-# CIS 3.2.2: Ensure ICMP redirects are not accepted
-set_sysctl_param "net.ipv4.conf.all.accept_redirects" "0" "Disable accepting ICMP redirects (all)"
-add_to_sysctl_conf "net.ipv4.conf.all.accept_redirects" "0"
-
-set_sysctl_param "net.ipv4.conf.default.accept_redirects" "0" "Disable accepting ICMP redirects (default)"
-add_to_sysctl_conf "net.ipv4.conf.default.accept_redirects" "0"
-
-# CIS 3.2.3: Ensure secure ICMP redirects are not accepted
-set_sysctl_param "net.ipv4.conf.all.secure_redirects" "0" "Disable secure ICMP redirects (all)"
-add_to_sysctl_conf "net.ipv4.conf.all.secure_redirects" "0"
-
-set_sysctl_param "net.ipv4.conf.default.secure_redirects" "0" "Disable secure ICMP redirects (default)"
-add_to_sysctl_conf "net.ipv4.conf.default.secure_redirects" "0"
-
-# IPv6 ICMP redirects
-if [ -f /proc/sys/net/ipv6/conf/all/accept_redirects ]; then
-    set_sysctl_param "net.ipv6.conf.all.accept_redirects" "0" "Disable IPv6 ICMP redirects (all)"
-    add_to_sysctl_conf "net.ipv6.conf.all.accept_redirects" "0"
-    
-    set_sysctl_param "net.ipv6.conf.default.accept_redirects" "0" "Disable IPv6 ICMP redirects (default)"
-    add_to_sysctl_conf "net.ipv6.conf.default.accept_redirects" "0"
+# Reload sysctl service to ensure persistence
+if command -v systemctl &>/dev/null; then
+    log_info "Restarting systemd-sysctl service..."
+    systemctl restart systemd-sysctl.service 2>/dev/null && log_success "Service restarted" || log_warning "Could not restart service"
 fi
 
-################################################################################
-# CIS 3.3 - Network parameters (Host and Router)
-################################################################################
+# Verify a few key settings
+log_info ""
+log_info "Verifying applied settings:"
+log_info "  net.ipv4.ip_forward = $(sysctl -n net.ipv4.ip_forward 2>/dev/null || echo 'error')"
+log_info "  net.ipv4.tcp_syncookies = $(sysctl -n net.ipv4.tcp_syncookies 2>/dev/null || echo 'error')"
+log_info "  net.ipv4.conf.all.accept_redirects = $(sysctl -n net.ipv4.conf.all.accept_redirects 2>/dev/null || echo 'error')"
+log_info "  net.ipv4.conf.all.log_martians = $(sysctl -n net.ipv4.conf.all.log_martians 2>/dev/null || echo 'error')"
 
-log_info "CIS 3.3: Configuring network parameters..."
-
-# CIS 3.3.1: Ensure source routed packets are not accepted
-set_sysctl_param "net.ipv4.conf.all.accept_source_route" "0" "Disable source routing (all)"
-add_to_sysctl_conf "net.ipv4.conf.all.accept_source_route" "0"
-
-set_sysctl_param "net.ipv4.conf.default.accept_source_route" "0" "Disable source routing (default)"
-add_to_sysctl_conf "net.ipv4.conf.default.accept_source_route" "0"
-
-# IPv6 source routing
-if [ -f /proc/sys/net/ipv6/conf/all/accept_source_route ]; then
-    set_sysctl_param "net.ipv6.conf.all.accept_source_route" "0" "Disable IPv6 source routing (all)"
-    add_to_sysctl_conf "net.ipv6.conf.all.accept_source_route" "0"
-    
-    set_sysctl_param "net.ipv6.conf.default.accept_source_route" "0" "Disable IPv6 source routing (default)"
-    add_to_sysctl_conf "net.ipv6.conf.default.accept_source_route" "0"
-fi
-
-# CIS 3.3.2: Ensure ICMP broadcast requests are ignored
-set_sysctl_param "net.ipv4.icmp_echo_ignore_broadcasts" "1" "Ignore ICMP broadcast requests"
-add_to_sysctl_conf "net.ipv4.icmp_echo_ignore_broadcasts" "1"
-
-# CIS 3.3.3: Ensure bogus ICMP responses are ignored
-set_sysctl_param "net.ipv4.icmp_ignore_bogus_error_responses" "1" "Ignore bogus ICMP responses"
-add_to_sysctl_conf "net.ipv4.icmp_ignore_bogus_error_responses" "1"
-
-# CIS 3.3.4: Ensure Reverse Path Filtering is enabled
-set_sysctl_param "net.ipv4.conf.all.rp_filter" "1" "Enable reverse path filtering (all)"
-add_to_sysctl_conf "net.ipv4.conf.all.rp_filter" "1"
-
-set_sysctl_param "net.ipv4.conf.default.rp_filter" "1" "Enable reverse path filtering (default)"
-add_to_sysctl_conf "net.ipv4.conf.default.rp_filter" "1"
-
-# CIS 3.3.5: Ensure TCP SYN Cookies is enabled
-set_sysctl_param "net.ipv4.tcp_syncookies" "1" "Enable TCP SYN cookies (SYN flood protection)"
-add_to_sysctl_conf "net.ipv4.tcp_syncookies" "1"
-
-# CIS 3.3.6: Ensure IPv6 router advertisements are not accepted
-if [ -f /proc/sys/net/ipv6/conf/all/accept_ra ]; then
-    set_sysctl_param "net.ipv6.conf.all.accept_ra" "0" "Disable IPv6 router advertisements (all)"
-    add_to_sysctl_conf "net.ipv6.conf.all.accept_ra" "0"
-    
-    set_sysctl_param "net.ipv6.conf.default.accept_ra" "0" "Disable IPv6 router advertisements (default)"
-    add_to_sysctl_conf "net.ipv6.conf.default.accept_ra" "0"
-fi
-
-# CIS 3.3.7: Ensure suspicious packets are logged
-set_sysctl_param "net.ipv4.conf.all.log_martians" "1" "Log suspicious packets (all)"
-add_to_sysctl_conf "net.ipv4.conf.all.log_martians" "1"
-
-set_sysctl_param "net.ipv4.conf.default.log_martians" "1" "Log suspicious packets (default)"
-add_to_sysctl_conf "net.ipv4.conf.default.log_martians" "1"
-
-################################################################################
-# Additional hardening parameters
-################################################################################
-
-log_info "Applying additional network hardening parameters..."
-
-# Disable IPv6 if not needed (optional - uncomment if IPv6 is not required)
-# set_sysctl_param "net.ipv6.conf.all.disable_ipv6" "1" "Disable IPv6"
-# add_to_sysctl_conf "net.ipv6.conf.all.disable_ipv6" "1"
-
-# TCP hardening
-set_sysctl_param "net.ipv4.tcp_max_syn_backlog" "2048" "Increase SYN backlog queue"
-add_to_sysctl_conf "net.ipv4.tcp_max_syn_backlog" "2048"
-
-set_sysctl_param "net.ipv4.tcp_synack_retries" "2" "Reduce SYN-ACK retries"
-add_to_sysctl_conf "net.ipv4.tcp_synack_retries" "2"
-
-set_sysctl_param "net.ipv4.tcp_syn_retries" "5" "Reduce SYN retries"
-add_to_sysctl_conf "net.ipv4.tcp_syn_retries" "5"
-
-# Enable TCP timestamps for better RTT calculation
-set_sysctl_param "net.ipv4.tcp_timestamps" "1" "Enable TCP timestamps"
-add_to_sysctl_conf "net.ipv4.tcp_timestamps" "1"
-
-################################################################################
-# Apply configuration
-################################################################################
-
-apply_sysctl_conf
-
-################################################################################
 # Summary
-################################################################################
-
 log_info ""
 log_info "═══════════════════════════════════════════════════════════"
 log_info "  NETWORK HARDENING SUMMARY"
 log_info "═══════════════════════════════════════════════════════════"
-
-if [ "$DRY_RUN" = true ]; then
-    log_info "Dry run completed: ${CHANGES_PLANNED} changes would be made"
-    log_warning "Run without --dry-run to apply changes"
-else
-    log_success "Network hardening completed: ${CHANGES_MADE} changes applied"
-    log_info ""
-    log_info "Configuration saved to: $SYSCTL_CONF"
-    log_info ""
-    log_info "CIS Controls Applied:"
-    log_info "  • 3.1.x - IP forwarding disabled"
-    log_info "  • 3.2.x - ICMP redirects disabled"
-    log_info "  • 3.3.x - TCP/IP stack hardening"
-    log_info ""
-    log_info "Settings are persistent across reboots."
-    log_warning "Verify network connectivity after applying changes"
-fi
-
+log_success "Network hardening completed: ${CHANGES_MADE} settings applied"
+log_info ""
+log_info "Configuration saved to: $SYSCTL_CONF"
+log_info ""
+log_info "CIS Controls Applied:"
+log_info "  • 3.1.x - IP forwarding disabled"
+log_info "  • 3.2.x - ICMP redirects disabled"
+log_info "  • 3.3.x - TCP/IP stack hardening"
+log_info ""
+log_info "Settings are persistent across reboots."
+log_warning "Verify network connectivity after applying changes"
 log_info "═══════════════════════════════════════════════════════════"
 
 exit 0
