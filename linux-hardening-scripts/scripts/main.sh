@@ -64,8 +64,12 @@ DESCRIPTION:
 
 USAGE:
   sudo ./linux-hardening-scripts/scripts/main.sh [OPTIONS]
+  sudo ./linux-hardening-scripts/scripts/main.sh [COMMAND]
 
-OPTIONS:
+═══════════════════════════════════════════════════════════════════════════════
+                              HARDENING OPTIONS
+═══════════════════════════════════════════════════════════════════════════════
+
   -h, --help                    Display this help message and exit
   --update                      Update scripts from main repository and resync
   --update-status               Check for available updates
@@ -75,7 +79,24 @@ OPTIONS:
   --exclude-modules <list>      Comma-separated list of modules to skip
                                 (no spaces between module names)
 
-AVAILABLE MODULES:
+═══════════════════════════════════════════════════════════════════════════════
+                          SYSADMIN UTILITY COMMANDS
+═══════════════════════════════════════════════════════════════════════════════
+
+  --list-sudo-users             List all users with sudo/admin privileges
+  --list-sudo-users --verbose   Show detailed user information
+  --list-sudo-users --user <name>   Check a specific user's privileges
+  --list-sudo-users --format <fmt>  Output as: text, json, or csv
+  --list-sudo-users --output <file> Export results to file
+
+  --remove-hacking-tools        Remove penetration testing tools & games
+  --remove-hacking-tools --dry-run  Preview what would be removed
+  --remove-hacking-tools --aggressive  Also remove dev tools (gcc, git, etc.)
+
+═══════════════════════════════════════════════════════════════════════════════
+                            AVAILABLE MODULES
+═══════════════════════════════════════════════════════════════════════════════
+
   account-security              Password policies, sudo, SSH config security (CIS 5.1-5.5, 6.1-6.2)
   audit-hardening               Audit & logging configuration (CIS 4.1-4.4, 5.2-5.3)
   bootloader-hardening          GRUB security and permissions (CIS 1.5)
@@ -88,36 +109,59 @@ AVAILABLE MODULES:
   ssh-hardening                 SSH daemon configuration (CIS 5.2)
   user-security                 User/group permissions (CIS 5.1-5.5, 6.x)
 
-QUICK START EXAMPLES:
+═══════════════════════════════════════════════════════════════════════════════
+                              QUICK START EXAMPLES
+═══════════════════════════════════════════════════════════════════════════════
 
-  1. Check for updates:
-     sudo ./linux-hardening-scripts/scripts/main.sh --update-status
+  HARDENING:
 
-  2. Update scripts from repository:
-     sudo ./linux-hardening-scripts/scripts/main.sh --update
+    # Preview all hardening changes (dry-run, always do this first)
+    sudo ./main.sh --dry-run
 
-  3. Preview update changes (dry-run):
-     sudo ./linux-hardening-scripts/scripts/main.sh --update --dry-run
+    # Apply all hardening
+    sudo ./main.sh
 
-  4. Preview all hardening changes (dry-run, always do this first):
-     sudo ./linux-hardening-scripts/scripts/main.sh --dry-run
+    # Skip SSH hardening
+    sudo ./main.sh --dry-run --exclude-modules ssh-hardening
 
-  5. Apply all hardening:
-     sudo ./linux-hardening-scripts/scripts/main.sh
+    # Skip multiple modules
+    sudo ./main.sh --exclude-modules firewall-setup,network-hardening
 
-  6. Skip SSH hardening:
-     sudo ./linux-hardening-scripts/scripts/main.sh --dry-run --exclude-modules ssh-hardening
+  UPDATES:
 
-  7. Skip multiple modules:
-     sudo ./linux-hardening-scripts/scripts/main.sh --exclude-modules firewall-setup,network-hardening
+    # Check for updates
+    sudo ./main.sh --update-status
 
-  8. Use custom log file:
-     sudo ./linux-hardening-scripts/scripts/main.sh --log-file /var/log/hardening.log
+    # Update scripts from repository
+    sudo ./main.sh --update
 
-  9. Combine options:
-     sudo ./linux-hardening-scripts/scripts/main.sh --dry-run --exclude-modules ssh-hardening --log-file /tmp/test.log
+  SYSADMIN UTILITIES:
 
-WORKFLOW:
+    # List all users with admin privileges
+    sudo ./main.sh --list-sudo-users
+
+    # Detailed user audit with verbose output
+    sudo ./main.sh --list-sudo-users --verbose
+
+    # Check if specific user has sudo
+    sudo ./main.sh --list-sudo-users --user john
+
+    # Export user audit to CSV
+    sudo ./main.sh --list-sudo-users --format csv --output /tmp/users.csv
+
+    # Preview removal of hacking tools
+    sudo ./main.sh --remove-hacking-tools --dry-run
+
+    # Remove hacking tools (games, pentest tools)
+    sudo ./main.sh --remove-hacking-tools
+
+    # Aggressive removal (includes compilers, debuggers)
+    sudo ./main.sh --remove-hacking-tools --aggressive
+
+═══════════════════════════════════════════════════════════════════════════════
+                              WORKFLOW
+═══════════════════════════════════════════════════════════════════════════════
+
   1. Run with --dry-run to preview changes
   2. Review the output carefully
   3. Run without --dry-run to apply changes
@@ -153,7 +197,25 @@ usage_short() {
     echo "Try '$0 --help' for more information."
 }
 
+# Sysadmin utilities directory
+SYSADMIN_UTILS_DIR="$REPO_ROOT/scripts/sysadmin-utils"
+
 # Parse command-line arguments
+# First, check for utility commands that need to pass through all remaining args
+case "${1:-}" in
+    --list-sudo-users)
+        shift
+        # Pass all remaining arguments to the utility script
+        exec "$SYSADMIN_UTILS_DIR/list-users-with-sudo.sh" "$@"
+        ;;
+    --remove-hacking-tools)
+        shift
+        # Pass all remaining arguments to the utility script
+        exec "$SYSADMIN_UTILS_DIR/remove-hacking-tools.sh" "$@"
+        ;;
+esac
+
+# Standard argument parsing for hardening options
 while [[ "$#" -gt 0 ]]; do
     case $1 in
         -h|--help) 
