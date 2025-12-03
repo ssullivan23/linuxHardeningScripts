@@ -21,6 +21,7 @@ source "${SCRIPT_DIR}/../utils/logger.sh" 2>/dev/null || {
 
 # Configuration
 DRY_RUN=false
+QUIET_MODE=false
 CHANGES_MADE=0
 CHANGES_PLANNED=0
 AUDIT_RULES="/etc/audit/rules.d/hardening.rules"
@@ -29,11 +30,15 @@ AUDIT_RULES="/etc/audit/rules.d/hardening.rules"
 while [[ "$#" -gt 0 ]]; do
     case $1 in
         --dry-run) DRY_RUN=true ;;
+        --quiet|-q) QUIET_MODE=true ;;
         -h|--help) usage; exit 0 ;;
         *) echo "Unknown parameter: $1"; exit 1 ;;
     esac
     shift
 done
+
+# Export QUIET_MODE for logger.sh
+export QUIET_MODE
 
 # Initialize
 if [ "$DRY_RUN" = true ]; then

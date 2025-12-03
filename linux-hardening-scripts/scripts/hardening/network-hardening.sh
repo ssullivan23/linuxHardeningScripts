@@ -23,6 +23,7 @@ source "$REPO_ROOT/scripts/utils/validation.sh" 2>/dev/null || true
 
 # Configuration
 DRY_RUN=false
+QUIET_MODE=false
 CHANGES_MADE=0
 CHANGES_PLANNED=0
 SYSCTL_CONF="/etc/sysctl.d/60-cis-network-hardening.conf"
@@ -31,9 +32,11 @@ SYSCTL_CONF="/etc/sysctl.d/60-cis-network-hardening.conf"
 while [[ "$#" -gt 0 ]]; do
     case $1 in
         --dry-run) DRY_RUN=true ;;
+        --quiet|-q) QUIET_MODE=true ;;
         -h|--help)
-            echo "Usage: $0 [--dry-run]"
+            echo "Usage: $0 [--dry-run] [--quiet]"
             echo "  --dry-run    Show what changes would be made without applying them"
+            echo "  --quiet, -q  Minimal output - only show warnings and changes"
             echo ""
             echo "This script implements CIS Ubuntu 22.04 LTS Benchmark Section 3:"
             echo "  3.1 - Disable unused network protocols and devices"
@@ -45,6 +48,9 @@ while [[ "$#" -gt 0 ]]; do
     esac
     shift
 done
+
+# Export QUIET_MODE for logger.sh
+export QUIET_MODE
 
 # Check if running as root
 if [ "$EUID" -ne 0 ] && [ "$DRY_RUN" = false ]; then

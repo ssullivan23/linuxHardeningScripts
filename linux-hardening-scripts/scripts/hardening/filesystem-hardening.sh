@@ -14,13 +14,14 @@ source "${SCRIPT_DIR}/../utils/logger.sh" 2>/dev/null || {
 
 # Function to display usage
 usage() {
-    echo "Usage: $0 [--dry-run]"
+    echo "Usage: $0 [--dry-run] [--quiet]"
     echo "  --dry-run    Show what changes would be made without applying them."
-
+    echo "  --quiet, -q  Minimal output - only show warnings and changes"
 }
 
 # Configuration
 DRY_RUN=false
+QUIET_MODE=false
 CHANGES_MADE=0
 CHANGES_PLANNED=0
 
@@ -28,11 +29,15 @@ CHANGES_PLANNED=0
 while [[ "$#" -gt 0 ]]; do
     case $1 in
         --dry-run) DRY_RUN=true ;;
+        --quiet|-q) QUIET_MODE=true ;;
         -h|--help) usage; exit 0 ;;
         *) echo "Unknown parameter: $1"; usage; exit 1 ;;
     esac
     shift
 done
+
+# Export QUIET_MODE for logger.sh
+export QUIET_MODE
 
 # Start logging
 log_info "Starting filesystem hardening script."
