@@ -15,6 +15,7 @@ source "${SCRIPT_DIR}/../utils/logger.sh" 2>/dev/null || {
 
 # Configuration
 DRY_RUN=false
+QUIET_MODE=false
 SSH_CONFIG="/etc/ssh/sshd_config"
 SSH_CONFIG_BACKUP="${SSH_CONFIG}.backup.$(date +%Y%m%d_%H%M%S)"
 CHANGES_MADE=0
@@ -24,10 +25,14 @@ CHANGES_PLANNED=0
 while [[ "$#" -gt 0 ]]; do
     case $1 in
         --dry-run) DRY_RUN=true ;;
+        --quiet|-q) QUIET_MODE=true ;;
         *) echo "Unknown parameter: $1"; exit 1 ;;
     esac
     shift
 done
+
+# Export QUIET_MODE for logger.sh
+export QUIET_MODE
 
 # Initialize
 if [ "$DRY_RUN" = true ]; then
@@ -46,11 +51,11 @@ update_ssh_config() {
         current_value=$(grep "^${param}" "$SSH_CONFIG" | awk '{print $2}')
         if [ "$current_value" != "$value" ]; then
             if [ "$DRY_RUN" = true ]; then
-                log_info "[DRY RUN] Would change ${param} from '${current_value}' to '${value}' - ${description}"
+                log_planned "Would change ${param} from '${current_value}' to '${value}' - ${description}"
                 ((CHANGES_PLANNED++))
             else
                 sed -i "s/^${param}.*/${param} ${value}/" "$SSH_CONFIG"
-                log_info "Changed ${param} from '${current_value}' to '${value}' - ${description}"
+                log_change "Changed ${param} from '${current_value}' to '${value}' - ${description}"
                 ((CHANGES_MADE++))
             fi
         else
@@ -58,11 +63,11 @@ update_ssh_config() {
         fi
     else
         if [ "$DRY_RUN" = true ]; then
-            log_info "[DRY RUN] Would add ${param} ${value} - ${description}"
+            log_planned "Would add ${param} ${value} - ${description}"
             ((CHANGES_PLANNED++))
         else
             echo "${param} ${value}" >> "$SSH_CONFIG"
-            log_info "Added ${param} ${value} - ${description}"
+            log_change "Added ${param} ${value} - ${description}"
             ((CHANGES_MADE++))
         fi
     fi
@@ -135,38 +140,44 @@ update_ssh_config "GSSAPIAuthentication" "no" "Disables GSSAPI if not used"
 
 # Set strong ciphers
 if [ "$DRY_RUN" = true ]; then
-    log_info "[DRY RUN] Would configure strong cipher suites"
+    log_planned "Would configure strong cipher suites"
     ((CHANGES_PLANNED++))
 else
     if ! grep -q "^Ciphers" "$SSH_CONFIG"; then
         echo "Ciphers aes256-gcm@openssh.com,aes128-gcm@openssh.com,aes256-ctr,aes192-ctr,aes128-ctr" >> "$SSH_CONFIG"
-        log_info "Configured strong cipher suites"
+        log_change "Configured strong cipher suites"
         ((CHANGES_MADE++))
+    else
+        log_info "Cipher suites already configured"
     fi
 fi
 
 # Set strong MACs
 if [ "$DRY_RUN" = true ]; then
-    log_info "[DRY RUN] Would configure strong MAC algorithms"
+    log_planned "Would configure strong MAC algorithms"
     ((CHANGES_PLANNED++))
 else
     if ! grep -q "^MACs" "$SSH_CONFIG"; then
         echo "MACs hmac-sha2-512-etm@openssh.com,hmac-sha2-256-etm@openssh.com,hmac-sha2-512,hmac-sha2-256" >> "$SSH_CONFIG"
-        log_info "Configured strong MAC algorithms"
+        log_change "Configured strong MAC algorithms"
         ((CHANGES_MADE++))
+    else
+        log_info "MAC algorithms already configured"
     fi
 fi
 
 # Set strong key exchange algorithms
 if [ "$DRY_RUN" = true ]; then
-    log_info "[DRY RUN] Would configure strong key exchange algorithms"
+    log_planned "Would configure strong key exchange algorithms"
     ((CHANGES_PLANNED++))
 else
     if ! grep -q "^KexAlgorithms" "$SSH_CONFIG"; then
         # Use algorithms compatible with OpenSSH 6.6+ (Ubuntu 14.04+)
         echo "KexAlgorithms curve25519-sha256@libssh.org,diffie-hellman-group-exchange-sha256" >> "$SSH_CONFIG"
-        log_info "Configured strong key exchange algorithms"
+        log_change "Configured strong key exchange algorithms"
         ((CHANGES_MADE++))
+    else
+        log_info "Key exchange algorithms already configured"
     fi
 fi
 
@@ -182,7 +193,7 @@ update_ssh_config "AllowAgentForwarding" "no" "Disables SSH agent forwarding"
 
 # Set banner
 if [ "$DRY_RUN" = true ]; then
-    log_info "[DRY RUN] Would set login banner"
+    log_planned "Would set login banner"
 else
     if [ ! -f "/etc/ssh/banner" ]; then
         cat > /etc/ssh/banner << 'EOF'
@@ -193,7 +204,10 @@ Unauthorized access to this system is forbidden and will be prosecuted.
 All connections are monitored and recorded.
 ***************************************************************************
 EOF
+        log_change "Created SSH warning banner at /etc/ssh/banner"
         update_ssh_config "Banner" "/etc/ssh/banner" "Sets warning banner"
+    else
+        log_info "SSH banner already exists"
     fi
 fi
 

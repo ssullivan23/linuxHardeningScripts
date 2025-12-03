@@ -47,6 +47,7 @@ ENABLE_AUTH_HARDENING="${ENABLE_AUTH_HARDENING:-yes}"
 
 # Default values
 DRY_RUN=false
+QUIET_MODE=false
 LOG_FILE="$REPO_ROOT/logs/hardening_summary.log"
 EXCLUDED_MODULES=""
 
@@ -74,6 +75,8 @@ USAGE:
   --update                      Update scripts from main repository and resync
   --update-status               Check for available updates
   --dry-run                     Preview all changes without making modifications
+  --quiet, -q                   Minimal output - only show warnings and changes
+                                (suppresses informational messages for cleaner output)
   --log-file <file>             Specify custom log file location
                                 (default: logs/hardening_summary.log)
   --exclude-modules <list>      Comma-separated list of modules to skip
@@ -120,6 +123,12 @@ USAGE:
 
     # Apply all hardening
     sudo ./main.sh
+
+    # Apply hardening with minimal output (only warnings & changes)
+    sudo ./main.sh --quiet
+
+    # Combine quiet mode with dry-run for clean preview
+    sudo ./main.sh --dry-run --quiet
 
     # Skip SSH hardening
     sudo ./main.sh --dry-run --exclude-modules ssh-hardening
@@ -233,6 +242,7 @@ while [[ "$#" -gt 0 ]]; do
             exit $?
             ;;
         --dry-run) DRY_RUN=true ;;
+        --quiet|-q) QUIET_MODE=true ;;
         --log-file) 
             if [ -z "$2" ]; then
                 echo "Error: --log-file requires an argument"
@@ -329,14 +339,19 @@ mkdir -p "$(dirname "$LOG_FILE")"
 log_start "$LOG_FILE"
 
 # Display execution info
-if [ "$DRY_RUN" = true ]; then
-    log_message "Starting DRY RUN mode - no changes will be made"
+if [ "$QUIET_MODE" != true ]; then
+    if [ "$DRY_RUN" = true ]; then
+        log_message "Starting DRY RUN mode - no changes will be made"
+    else
+        log_message "Starting hardening process - LIVE MODE"
+    fi
+    
+    if [ -n "$EXCLUDED_MODULES" ]; then
+        log_message "Excluded modules: $EXCLUDED_MODULES"
+    fi
 else
-    log_message "Starting hardening process - LIVE MODE"
-fi
-
-if [ -n "$EXCLUDED_MODULES" ]; then
-    log_message "Excluded modules: $EXCLUDED_MODULES"
+    echo "Running in quiet mode - showing only warnings and changes..."
+    echo ""
 fi
 
 # Execute hardening scripts
@@ -354,24 +369,42 @@ for script in "$HARDENING_DIR"/*.sh; do
     TOTAL_SCRIPTS=$((TOTAL_SCRIPTS + 1))
     
     if should_run_module "$script"; then
-        log_message "Executing: $script_name"
-        EXECUTED_SCRIPTS=$((EXECUTED_SCRIPTS + 1))
-        if [ "$DRY_RUN" = true ]; then
-            bash "$script" --dry-run 2>&1 || true
-        else
-            bash "$script" 2>&1 || true
+        if [ "$QUIET_MODE" != true ]; then
+            log_message "Executing: $script_name"
         fi
+        EXECUTED_SCRIPTS=$((EXECUTED_SCRIPTS + 1))
+        
+        # Build command arguments
+        SCRIPT_ARGS=""
+        if [ "$DRY_RUN" = true ]; then
+            SCRIPT_ARGS="--dry-run"
+        fi
+        if [ "$QUIET_MODE" = true ]; then
+            SCRIPT_ARGS="$SCRIPT_ARGS --quiet"
+        fi
+        
+        bash "$script" $SCRIPT_ARGS 2>&1 || true
     else
-        log_message "Skipping: $script_name (module disabled)"
+        if [ "$QUIET_MODE" != true ]; then
+            log_message "Skipping: $script_name (module disabled)"
+        fi
         SKIPPED_SCRIPTS=$((SKIPPED_SCRIPTS + 1))
     fi
 done
 
-log_message ""
-log_message "Execution Summary:"
-log_message "  Total scripts: $TOTAL_SCRIPTS"
-log_message "  Executed: $EXECUTED_SCRIPTS"
-log_message "  Skipped: $SKIPPED_SCRIPTS"
+if [ "$QUIET_MODE" != true ]; then
+    log_message ""
+    log_message "Execution Summary:"
+    log_message "  Total scripts: $TOTAL_SCRIPTS"
+    log_message "  Executed: $EXECUTED_SCRIPTS"
+    log_message "  Skipped: $SKIPPED_SCRIPTS"
+else
+    echo ""
+    echo "═══════════════════════════════════════════════════════════════════════"
+    echo "  Completed: $EXECUTED_SCRIPTS modules executed, $SKIPPED_SCRIPTS skipped"
+    echo "  Full details logged to: $LOG_FILE"
+    echo "═══════════════════════════════════════════════════════════════════════"
+fi
 
 # Generate summary report
 generate_summary "$LOG_FILE"
