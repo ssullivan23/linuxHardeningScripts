@@ -186,17 +186,25 @@ done
 # Function to check if user has sudo access via group membership
 check_sudo_group() {
     local username="$1"
-    local has_sudo=false
+    local user_groups
+    
+    # Get all groups for the user
+    user_groups=$(id -nG "$username" 2>/dev/null)
+    
+    if [ -z "$user_groups" ]; then
+        echo "false"
+        return
+    fi
     
     # Check common sudo group names
-    for group in sudo wheel admin root; do
-        if groups "$username" 2>/dev/null | grep -qw "$group"; then
-            has_sudo=true
-            break
+    for group in sudo wheel admin; do
+        if echo "$user_groups" | grep -qw "$group"; then
+            echo "true"
+            return
         fi
     done
     
-    echo "$has_sudo"
+    echo "false"
 }
 
 # Function to check sudoers file
@@ -204,17 +212,25 @@ check_sudoers_file() {
     local username="$1"
     
     # Check /etc/sudoers and /etc/sudoers.d/ for direct user entries
-    if sudo grep -r "^${username}[[:space:]]" /etc/sudoers /etc/sudoers.d/ 2>/dev/null | grep -v "^#" >/dev/null; then
+    # Look for username at start of line, or ALL=(ALL entries, or username with spaces/tabs
+    if grep -r "^${username}[[:space:]]" /etc/sudoers /etc/sudoers.d/ 2>/dev/null | grep -v "^#" | grep -v ":#" >/dev/null 2>&1; then
         echo "true"
-    else
-        echo "false"
+        return
     fi
+    
+    # Also check for entries like "username ALL="
+    if grep -r "^${username}[[:space:]]*ALL" /etc/sudoers /etc/sudoers.d/ 2>/dev/null | grep -v "^#" | grep -v ":#" >/dev/null 2>&1; then
+        echo "true"
+        return
+    fi
+    
+    echo "false"
 }
 
 # Function to get user's groups
 get_user_groups() {
     local username="$1"
-    groups "$username" 2>/dev/null | cut -d: -f2 | xargs
+    id -nG "$username" 2>/dev/null || echo ""
 }
 
 # Function to get last login
@@ -374,21 +390,31 @@ if [ -n "$CHECK_USER" ]; then
 fi
 
 # Categories
-declare -a ADMIN_USERS
-declare -a REGULAR_USERS
-declare -a SYSTEM_USERS
+declare -a ADMIN_USERS=()
+declare -a REGULAR_USERS=()
+declare -a SYSTEM_USERS=()
 
 # Process each user in /etc/passwd
 echo -e "${BLUE}Analyzing users...${NC}"
 echo ""
 
-while IFS=: read -r username password uid gid gecos homedir shell; do
+# Read users into an array first to avoid subshell issues
+mapfile -t all_users < <(cut -d: -f1 /etc/passwd)
+
+for username in "${all_users[@]}"; do
+    # Get user info
+    user_entry=$(getent passwd "$username" 2>/dev/null)
+    if [ -z "$user_entry" ]; then
+        continue
+    fi
+    
+    uid=$(echo "$user_entry" | cut -d: -f3)
+    shell=$(echo "$user_entry" | cut -d: -f7)
+    
     # Skip if no shell or disabled shell
     if [[ "$shell" == "/sbin/nologin" ]] || [[ "$shell" == "/bin/false" ]] || [[ "$shell" == "/usr/sbin/nologin" ]]; then
         if [ "$VERBOSE" = true ] || [ "$SHOW_SYSTEM" = true ]; then
-            if [ "$uid" -lt "$MIN_UID" ]; then
-                SYSTEM_USERS+=("$username:$uid")
-            fi
+            SYSTEM_USERS+=("$username:$uid")
         fi
         continue
     fi
@@ -407,7 +433,7 @@ while IFS=: read -r username password uid gid gecos homedir shell; do
             SYSTEM_USERS+=("$username:$uid")
         fi
     fi
-done < /etc/passwd
+done
 
 # Handle different output formats
 if [ "$OUTPUT_FORMAT" = "json" ]; then
